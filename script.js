@@ -430,7 +430,7 @@
     { id: 'java-preanger', name: 'Java Preanger', origin: 'Jawa Barat', type: 'Dark Roast', price: 38000, image: 'assets/images/product-java.jpg', rating: 4.6, reviews: 53, badge: null, weights: [100, 250, 500, 1000] },
     { id: 'biji-arabika', name: 'Biji Kopi Arabika', origin: 'Aceh', type: 'Light Roast', price: 37000, image: 'assets/images/product-arabika.jpg', rating: 4.7, reviews: 40, badge: null, weights: [100, 250, 500, 1000] },
     { id: 'biji-robusta', name: 'Biji Kopi Robusta', origin: 'Jawa Barat', type: 'Dark Roast', price: 28000, image: 'assets/images/product-robusta.jpg', rating: 4.6, reviews: 35, badge: null, weights: [100, 250, 500, 1000] },
-    { id: 'kopi-luwak', name: 'Kopi Luwak Premium', origin: 'Bali', type: 'Medium Roast', price: 150000, image: 'assets/images/product-luwak.jpg', rating: 4.9, reviews: 22, badge: 'Premium', weights: [100, 250, 500, 1000] }
+    { id: 'kopi-luwak', name: 'Biji Luwak White Coffe', origin: 'Bali', type: 'Medium Roast', price: 150000, image: 'assets/images/product-luwak.jpg', rating: 4.9, reviews: 22, badge: 'Premium', weights: [100, 250, 500, 1000] }
   ];
 
   var activeFilter = 'all';
