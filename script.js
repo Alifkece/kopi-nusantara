@@ -441,14 +441,13 @@
   }
 
   var originsCarousel = document.getElementById('originsCarousel');
-  var productsCarousel = document.getElementById('productsCarousel');
   var kiosCarousel = document.getElementById('kiosCarousel');
   initDragCarousel(originsCarousel);
-  initDragCarousel(productsCarousel);
   initDragCarousel(kiosCarousel);
   bindCarouselNav('origins', originsCarousel);
-  bindCarouselNav('products', productsCarousel);
   bindCarouselNav('kios', kiosCarousel);
+  /* Product section is now a static 2-column grid (not a carousel) —
+     drag-to-scroll and prev/next nav intentionally not attached here. */
 
   /* =======================================================
      8. PRODUK UNGGULAN — DATA-DRIVEN (UI PREVIEW, TANPA BACKEND)
