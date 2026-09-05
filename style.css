@@ -514,35 +514,6 @@ svg{ display: block; }
 .hero__badge text{ font-size: 8px; letter-spacing: .08em; fill: currentColor; font-family: var(--f-body); font-weight: 700; }
 @media (max-width: 780px){ .hero__badge{ display: none; } }
 
-/* --- Hero 3D signature: subtle floating coffee bean, supporting visual only --- */
-.hero__bean{
-  --bean-x: 0px; --bean-y: 0px;
-  position: absolute;
-  top: 9%; left: 6%;
-  z-index: 2;
-  width: clamp(52px, 7.5vw, 100px);
-  pointer-events: none;
-  transform: translate3d(var(--bean-x), var(--bean-y), 0);
-  transition: transform .4s var(--ease);
-  will-change: transform;
-}
-.hero__bean__float{
-  filter: drop-shadow(0 16px 26px rgba(20,12,8,.32));
-  animation: beanFloat 7s ease-in-out infinite;
-}
-.hero__bean-svg{ width: 100%; height: auto; display: block; }
-@keyframes beanFloat{
-  0%, 100%{ transform: translateY(0) rotate(-8deg); }
-  50%{ transform: translateY(-12px) rotate(-4deg); }
-}
-@media (max-width: 780px){
-  .hero__bean{ width: 44px; top: 6%; left: 5%; }
-  .hero__bean__float{ animation-duration: 8s; }
-}
-@media (prefers-reduced-motion: reduce){
-  .hero__bean__float{ animation: none; }
-}
-
 /* --- Slide indicator: baris terpisah, di antara gambar dan teks --- */
 .hero__dots{
   padding: 18px 0 4px;
