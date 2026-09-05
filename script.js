@@ -8,21 +8,6 @@
   var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   /* =======================================================
-     0. FORCE TOP ON INITIAL LOAD (fix: website terlihat sudah
-     scroll ke bawah saat pertama dibuka). Dipasangkan dengan
-     history.scrollRestoration = 'manual' di <head> index.html.
-  ======================================================= */
-  if (!window.location.hash) {
-    window.scrollTo(0, 0);
-  }
-  window.addEventListener('pageshow', function (e) {
-    // e.persisted: halaman dipulihkan dari bfcache (tombol back/forward)
-    if (e.persisted && !window.location.hash) {
-      window.scrollTo(0, 0);
-    }
-  });
-
-  /* =======================================================
      1. NAVBAR — solid on scroll
   ======================================================= */
   var navbar = document.getElementById('navbar');
@@ -44,7 +29,7 @@
 
   /* =======================================================
      1b. HERO SLIDESHOW
-     - deterministic order (hero.jpg, hero-02, hero-03, hero-04)
+     - deterministic order (about.jpg, hero-02, hero-03, hero-04)
      - autoplay + loop, crossfade via CSS opacity transition
      - skips any slide whose image fails to load (no random fallback)
      - pauses when tab is hidden to avoid wasted work
@@ -456,13 +441,14 @@
   }
 
   var originsCarousel = document.getElementById('originsCarousel');
+  var productsCarousel = document.getElementById('productsCarousel');
   var kiosCarousel = document.getElementById('kiosCarousel');
   initDragCarousel(originsCarousel);
+  initDragCarousel(productsCarousel);
   initDragCarousel(kiosCarousel);
   bindCarouselNav('origins', originsCarousel);
+  bindCarouselNav('products', productsCarousel);
   bindCarouselNav('kios', kiosCarousel);
-  // Catatan: produk sengaja TIDAK memakai drag-carousel — produk selalu
-  // ditampilkan sebagai grid responsif (lihat .products__carousel di style.css).
 
   /* =======================================================
      8. PRODUK UNGGULAN — DATA-DRIVEN (UI PREVIEW, TANPA BACKEND)
