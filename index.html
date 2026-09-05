@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<script>
+  /* FIX #1 — INITIAL SCROLL POSITION
+     Browser bisa memulihkan scroll position dari sesi sebelumnya
+     (scroll restoration) sebelum CSS/JS lain sempat jalan, sehingga
+     halaman terlihat "sudah di-scroll" saat pertama dibuka. Matikan
+     di sini, sedini mungkin, sebelum apa pun lain dieksekusi. */
+  if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kopi Nusantara — Rasa Nusantara, Dalam Setiap Seduhan</title>
+<meta name="description" content="Biji kopi pilihan dari berbagai daerah Indonesia — dipilih dengan cermat, disangrai dengan perhatian, dan dikirim untuk menemani setiap momen.">
+
+<!-- FIX #2 — ROOT CAUSE dari "black circle / flash hitam":
+     Google Fonts & Bootstrap CDN adalah render-blocking stylesheet
+     yang dimuat SEBELUM style.css lokal. Di koneksi lambat/CDN yang
+     telat, browser bisa sempat menggambar halaman sebelum style.css
+     siap. Style loader fallback di bawah ini di-inline langsung di
+     <head> (bukan lewat file eksternal) supaya overlay loading SELALU
+     aktif & full-screen sejak first paint, apa pun kondisi jaringan. */
+<style>
+  *,*::before,*::after{ box-sizing: border-box; }
+  html{ scroll-behavior: smooth; }
+  body{ margin: 0; background: #F6EEE1; overflow-x: hidden; }
+  body.loader-active{ overflow: hidden; }
+  .premium-loader--fallback{
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(160deg, #29221B 0%, #201a14 100%);
+  }
+  .premium-loader--fallback img{
+    width: clamp(120px, 30vw, 160px); height: auto;
+    animation: loaderFallbackPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes loaderFallbackPulse{
+    0%, 100%{ opacity: .55; transform: scale(.96); }
+    50%{ opacity: 1; transform: scale(1.02); }
+  }
+</style>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ PREMIUM LOADING SCREEN ============
+     #loader-root diisi oleh loader.jsx (React). Fallback CSS-only
+     di dalamnya tampil dulu selama React & Babel masih diparse,
+     lalu otomatis digantikan begitu React selesai mount — jadi
+     tidak pernah ada jeda tanpa animasi. -->
+<div id="loader-root">
+  <div class="premium-loader--fallback" id="loaderFallback">
+    <img src="assets/images/logo-wordmark.png" alt="Kopi Nusantara">
+  </div>
+</div>
+
+<div class="grain-overlay" aria-hidden="true"></div>
+<div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
+
+<!-- ============ NAVBAR ============ -->
+<header class="navbar" id="navbar">
+  <div class="navbar__inner">
+    <button class="hamburger" id="hamburger" type="button" aria-label="Buka menu" aria-expanded="false" aria-controls="mobileMenu">
+      <span class="hamburger__bars"><i></i><i></i><i></i></span>
+      <em>Menu</em>
+    </button>
+
+    <a href="#" class="navbar__logo" aria-label="Kopi Nusantara — Beranda">
+      <img src="assets/images/logo-icon.png" alt="Kopi Nusantara" width="52" height="40">
+    </a>
+
+    <nav class="navbar__nav" aria-label="Navigasi utama desktop">
+      <a href="#home" data-nav data-desktop-link>Beranda</a>
+      <a href="#produk" data-nav data-desktop-link>Kopi</a>
+      <a href="#tentang" data-nav data-desktop-link>Tentang</a>
+      <a href="#kios" data-nav data-desktop-link>Kios</a>
+      <a href="#lokasi" data-nav data-desktop-link>Lokasi</a>
+      <a href="#blog" data-nav data-desktop-link>Jurnal</a>
+      <a href="#kontak" data-nav data-desktop-link>Kontak</a>
+    </nav>
+
+    <div class="navbar__actions">
+      <button class="icon-btn" type="button" aria-label="Cari produk" data-action="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.2" y2="16.2"/></svg>
+      </button>
+      <button class="icon-btn" type="button" aria-label="Lihat keranjang" data-action="cart">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 4h2l2.2 11.4a2 2 0 0 0 2 1.6h7.6a2 2 0 0 0 2-1.6L21 8H6"/><circle cx="9.5" cy="20.5" r="1.2"/><circle cx="17.5" cy="20.5" r="1.2"/></svg>
+        <span class="icon-btn__badge" data-cart-count>0</span>
+      </button>
+      <button class="icon-btn" type="button" aria-label="Akun saya" data-action="account">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="8" r="3.4"/><path d="M4.5 20c1.6-3.6 5-5.4 7.5-5.4s5.9 1.8 7.5 5.4"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ============ FLOATING CONTACT BUTTON ============ -->
+<a href="#kontak" class="float-contact" aria-label="Hubungi Kopi Nusantara" data-nav>
+  <span class="float-contact__ring"></span>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+</a>
+
+<!-- ============ MOBILE MENU / SIDEBAR DRAWER ============ -->
+<div class="mobile-menu-backdrop" id="mobileMenuBackdrop" aria-hidden="true"></div>
+<div class="mobile-menu" id="mobileMenu" aria-hidden="true">
+  <button class="mobile-menu__close" id="mobileMenuClose" type="button" aria-label="Tutup menu">
+    <span></span>
+    <span></span>
+  </button>
+  <nav class="mobile-menu__nav" aria-label="Navigasi utama">
+    <a href="#home" data-nav data-mobile-link><span>01</span>Home</a>
+    <a href="#produk" data-nav data-mobile-link><span>02</span>Produk</a>
+    <a href="#tentang" data-nav data-mobile-link><span>03</span>Tentang Kami</a>
+    <a href="#kios" data-nav data-mobile-link><span>04</span>Kios</a>
+    <a href="#lokasi" data-nav data-mobile-link><span>05</span>Lokasi</a>
+    <a href="#blog" data-nav data-mobile-link><span>06</span>Blog</a>
+    <a href="#kontak" data-nav data-mobile-link><span>07</span>Kontak</a>
+  </nav>
+  <div class="mobile-menu__footer">
+    <p>Kopi pilihan dari ujung barat hingga timur Nusantara.</p>
+    <div class="mobile-menu__social">
+      <a href="#" data-placeholder>Instagram</a>
+      <a href="#" data-placeholder>TikTok</a>
+      <a href="https://wa.me/6285178110563" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+    </div>
+  </div>
+</div>
+
+<main id="home">
+
+  <!-- ============ HERO ============ -->
+  <section class="hero" aria-label="Perkenalan Kopi Nusantara">
+    <div class="hero__inner">
+
+      <!-- Kolom visual: gambar + indikator slide, dikemas jadi satu blok -->
+      <div class="hero__visual reveal" data-reveal>
+        <div class="hero__frame">
+          <div class="hero__media" id="heroMedia" data-hero-slideshow>
+            <img src="assets/images/hero.jpg" alt="Suasana Kopi Nusantara" class="hero__img is-active" data-hero-slide loading="eager">
+            <img src="assets/images/hero-02.jpg" alt="Suasana Kopi Nusantara" class="hero__img" data-hero-slide loading="lazy">
+            <img src="assets/images/hero-03.jpg" alt="Suasana Kopi Nusantara" class="hero__img" data-hero-slide loading="lazy">
+            <img src="assets/images/hero-04.jpg" alt="Suasana Kopi Nusantara" class="hero__img" data-hero-slide loading="lazy">
+            <div class="hero__overlay"></div>
+          </div>
+
+          <svg class="hero__badge" viewBox="0 0 120 120" aria-hidden="true">
+            <defs><path id="heroStampPath" d="M 60,60 m -50,0 a 50,50 0 1,1 100,0 a 50,50 0 1,1 -100,0"/></defs>
+            <circle cx="60" cy="60" r="50" class="hero__badge-ring" fill="none"/>
+            <text><textPath href="#heroStampPath" startOffset="0%">KOPI NUSANTARA • SEJAK 2024 • KOPI NUSANTARA • </textPath></text>
+            <circle cx="60" cy="60" r="20" class="hero__badge-dot" fill="none"/>
+          </svg>
+
+          <!-- Signature 3D element: subtle floating coffee bean, supporting visual only -->
+          <div class="hero__bean" id="heroBean" aria-hidden="true">
+            <div class="hero__bean__float">
+              <svg class="hero__bean-svg" viewBox="0 0 200 260" aria-hidden="true">
+                <defs>
+                  <linearGradient id="beanGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#F6EEE1" stop-opacity=".92"/>
+                    <stop offset="1" stop-color="#AD8A52" stop-opacity=".5"/>
+                  </linearGradient>
+                </defs>
+                <path d="M100 10C40 10 15 70 15 130C15 190 40 250 100 250C160 250 185 190 185 130C185 70 160 10 100 10Z" fill="url(#beanGrad)" stroke="#F6EEE1" stroke-width="2" stroke-opacity=".55"/>
+                <path d="M100 25C70 70 70 190 100 235" fill="none" stroke="#29221B" stroke-width="6" stroke-linecap="round" opacity=".5"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide indicator: menempel tepat di bawah gambar -->
+        <div class="hero__dots d-flex justify-content-center align-items-center gap-2" id="heroDots" data-hero-dots role="tablist" aria-label="Pilih slide hero"></div>
+      </div>
+
+      <!-- Kolom teks: logo besar + headline + CTA, sejajar dengan gambar -->
+      <div class="hero__content">
+        <img class="hero__logo" src="assets/images/logo-wordmark.png" alt="Kopi Nusantara" width="320" height="276" loading="eager">
+        <p class="eyebrow reveal" data-reveal>Kopi Pilihan Nusantara</p>
+        <h1 class="hero__headline">
+          <span class="line" data-hero-line>Rasa Nusantara,</span>
+          <span class="line" data-hero-line>Dalam Setiap Seduhan.</span>
+        </h1>
+        <p class="hero__desc reveal" data-reveal>
+          Biji kopi pilihan dari berbagai daerah Indonesia — dipilih dengan cermat, disangrai dengan perhatian, dan dikirim untuk menemani setiap momen.
+        </p>
+        <p class="hero__url reveal" data-reveal>www.kopinusantara.id</p>
+        <div class="hero__cta reveal d-flex flex-wrap gap-3" data-reveal>
+          <a href="#produk" class="btn btn--primary">Jelajahi Kopi</a>
+          <a href="#tentang" class="btn btn--ghost">Kenali Kopi Nusantara</a>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ TENTANG KAMI ============ -->
+  <section class="about" id="tentang" aria-label="Tentang Kopi Nusantara">
+    <div class="about__media reveal" data-reveal>
+      <video
+        class="about__video"
+        src="assets/images/about.mp4"
+        poster="assets/images/about.jpg"
+        autoplay muted loop playsinline
+        aria-label="Proses memilih dan menyangrai biji kopi Nusantara"
+        id="aboutVideo">
+      </video>
+    </div>
+    <div class="about__content">
+      <p class="eyebrow reveal" data-reveal>Cerita Kami</p>
+      <h2 class="reveal" data-reveal>Menjelajahi Indonesia,<br>Satu Cangkir Dalam Sekali Seduhan.</h2>
+      <p class="about__text reveal" data-reveal>
+        Dari dataran tinggi Gayo hingga lereng Kintamani, Indonesia menyimpan ribuan kilometer tanah penghasil kopi dengan karakter rasa yang tak pernah sama dua kali. Kopi Nusantara lahir dari keinginan sederhana: membawa keragaman itu utuh ke dalam cangkir Anda, tanpa menyamarkan asalnya.
+      </p>
+      <p class="about__text reveal" data-reveal>
+        Setiap biji melewati tangan petani yang mengenal tanahnya, disangrai secukupnya agar karakter aslinya tetap terjaga, lalu dikirim dalam kondisi terbaik — sedekat mungkin dengan momen ia dipetik.
+      </p>
+      <div class="about__stats reveal" data-reveal>
+        <div><strong data-count-to="30" data-suffix="+">0+</strong><span>Daerah Penghasil</span></div>
+        <div><strong data-count-to="100" data-suffix="%">0%</strong><span>Kopi Nusantara</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PROFIL KOPI NUSANTARA ============ -->
+  <section class="profile" aria-label="Profil Kopi Nusantara">
+    <div class="profile__text reveal" data-reveal>
+      <p class="eyebrow">Profil Kami</p>
+      <h2>Profil Kopi Nusantara</h2>
+      <p>
+        Kopi Nusantara lahir dari gagasan sederhana bahwa kopi terbaik Indonesia sering kali tertinggal di kebunnya sendiri, jarang sampai utuh ke tangan penikmatnya. Kami hadir sebagai jembatan — menghubungkan petani di dataran tinggi Nusantara dengan siapa pun yang ingin merasakan rasa asli daerahnya, secangkir demi secangkir.
+      </p>
+      <p>
+        Didirikan oleh tim yang menghabiskan waktu bertahun-tahun menjelajah kebun kopi dari Aceh hingga Bali, Kopi Nusantara menggabungkan kurasi yang cermat dengan proses penyangraian kecil-kecil, agar setiap batch tetap terasa personal — bukan produksi massal tanpa wajah.
+      </p>
+    </div>
+    <div class="profile__gallery reveal" data-reveal>
+      <div class="profile__gallery-img">
+        <img src="assets/images/origin-gayo.jpg" alt="Kebun kopi Gayo, salah satu asal biji Kopi Nusantara" loading="lazy">
+      </div>
+      <div class="profile__gallery-img profile__gallery-img--offset">
+        <img src="assets/images/origin-kintamani.jpg" alt="Kebun kopi Kintamani, salah satu asal biji Kopi Nusantara" loading="lazy">
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ASAL KOPI NUSANTARA ============ -->
+  <section class="origins" aria-label="Asal kopi Nusantara">
+    <div class="section-head">
+      <p class="eyebrow reveal" data-reveal>Peta Rasa</p>
+      <h2 class="reveal" data-reveal>Dari Ujung Barat<br>Hingga Timur Nusantara</h2>
+      <p class="section-head__desc reveal" data-reveal>
+        Setiap daerah menyimpan iklim, ketinggian, dan tangan pengolah yang berbeda — dan karena itu, karakter rasa yang tak tertukar.
+      </p>
+    </div>
+
+    <div class="origins__carousel-wrap">
+      <div class="origins__carousel" id="originsCarousel" tabindex="0" aria-label="Galeri asal kopi, geser untuk melihat lebih banyak">
+
+        <article class="origin-card">
+          <div class="origin-card__img">
+            <img src="assets/images/origin-gayo.jpg" alt="Kebun kopi di dataran tinggi Gayo, Aceh" loading="lazy">
+            <svg class="origin-card__stamp" viewBox="0 0 120 120" aria-hidden="true">
+              <defs><path id="stampPath1" d="M 60,60 m -44,0 a 44,44 0 1,1 88,0 a 44,44 0 1,1 -88,0"/></defs>
+              <circle cx="60" cy="60" r="44" class="origin-card__stamp-ring"/>
+              <text><textPath href="#stampPath1" startOffset="0%">GAYO • ACEH • GAYO • ACEH • </textPath></text>
+            </svg>
+          </div>
+          <div class="origin-card__body">
+            <h3>Gayo — Aceh</h3>
+            <p class="origin-card__meta">Dataran Tinggi Gayo · Arabika</p>
+            <p>Tumbuh di ketinggian dengan aroma rempah lembut dan keasaman yang tenang, khas tanah vulkanik Aceh.</p>
+          </div>
+        </article>
+
+        <article class="origin-card">
+          <div class="origin-card__img">
+            <img src="assets/images/origin-toraja.jpg" alt="Perkebunan kopi Toraja di Sulawesi" loading="lazy">
+            <svg class="origin-card__stamp" viewBox="0 0 120 120" aria-hidden="true">
+              <defs><path id="stampPath2" d="M 60,60 m -44,0 a 44,44 0 1,1 88,0 a 44,44 0 1,1 -88,0"/></defs>
+              <circle cx="60" cy="60" r="44" class="origin-card__stamp-ring"/>
+              <text><textPath href="#stampPath2" startOffset="0%">TORAJA • SULAWESI • TORAJA • </textPath></text>
+            </svg>
+          </div>
+          <div class="origin-card__body">
+            <h3>Toraja — Sulawesi</h3>
+            <p class="origin-card__meta">Tana Toraja · Arabika</p>
+            <p>Body yang tebal dengan sentuhan earthy dan rempah hangat, hasil pengolahan turun-temurun di pegunungan.</p>
+          </div>
+        </article>
+
+        <article class="origin-card">
+          <div class="origin-card__img">
+            <img src="assets/images/origin-kintamani.jpg" alt="Kebun kopi Kintamani di Bali" loading="lazy">
+            <svg class="origin-card__stamp" viewBox="0 0 120 120" aria-hidden="true">
+              <defs><path id="stampPath3" d="M 60,60 m -44,0 a 44,44 0 1,1 88,0 a 44,44 0 1,1 -88,0"/></defs>
+              <circle cx="60" cy="60" r="44" class="origin-card__stamp-ring"/>
+              <text><textPath href="#stampPath3" startOffset="0%">KINTAMANI • BALI • KINTAMANI • </textPath></text>
+            </svg>
+          </div>
+          <div class="origin-card__body">
+            <h3>Kintamani — Bali</h3>
+            <p class="origin-card__meta">Dataran Tinggi Kintamani · Arabika</p>
+            <p>Ditanam berdampingan dengan jeruk, memberi keasaman citrus yang cerah dan seduhan yang ringan.</p>
+          </div>
+        </article>
+
+      </div>
+
+      <div class="carousel-nav">
+        <button class="carousel-nav__btn" data-carousel-prev="origins" aria-label="Sebelumnya">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <button class="carousel-nav__btn" data-carousel-next="origins" aria-label="Berikutnya">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ VISI & MISI ============ -->
+  <section class="vision" aria-label="Visi dan misi Kopi Nusantara">
+    <div class="vision__media reveal" data-reveal>
+      <img src="assets/images/origin-toraja.jpg" alt="Kebun kopi Toraja, bagian dari visi Kopi Nusantara" loading="lazy">
+    </div>
+    <div class="vision__content">
+      <div class="vision__block reveal" data-reveal>
+        <p class="eyebrow">Visi</p>
+        <p class="vision__text">Menjadi jembatan yang mempertemukan kopi terbaik dari setiap daerah di Indonesia dengan penikmatnya, sambil menjaga keadilan bagi petani yang menanamnya.</p>
+      </div>
+      <div class="vision__block reveal" data-reveal>
+        <p class="eyebrow">Misi</p>
+        <ul class="vision__list">
+          <li>Mengkurasi dan menyediakan biji kopi berkualitas tinggi dari berbagai daerah penghasil.</li>
+          <li>Menjaga transparansi asal-usul setiap batch, dari kebun hingga cangkir.</li>
+          <li>Bermitra langsung dengan petani lokal secara adil dan berkelanjutan.</li>
+          <li>Menghadirkan pengalaman menyeduh yang konsisten bagi setiap pelanggan.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PRODUK UNGGULAN ============ -->
+  <!--
+    CATATAN PENGEMBANGAN:
+    Product card di bawah ini dirender secara dinamis dari array PRODUCTS
+    di script.js (data-driven, bukan hardcode per kartu). Struktur field
+    { id, name, origin, type, price, image, rating, reviews, badge, weights }
+    sengaja dibuat agar mudah diganti dengan data Firebase pada tahap berikutnya.
+    Filter, detail modal, dan cart saat ini masih frontend-only (belum ada
+    database/backend/payment).
+  -->
+  <section class="products" id="produk" aria-label="Produk unggulan">
+    <div class="section-head">
+      <p class="eyebrow reveal" data-reveal>Produk Unggulan</p>
+      <h2 class="reveal" data-reveal>Dipilih Untuk<br>Seduhan Terbaik Anda</h2>
+      <p class="section-head__desc reveal" data-reveal>
+        Pilih dari biji kopi terbaik yang kami kurasi dari setiap daerah penghasil.
+      </p>
+    </div>
+
+    <div class="disclaimer-box reveal" data-reveal>
+      <h3>Catatan</h3>
+      <p>Katalog produk di bawah ini masih berupa data contoh untuk kebutuhan tampilan. Filter, detail produk, dan keranjang sudah berfungsi di sisi tampilan, namun proses checkout dan pembayaran akan tersedia pada tahap pengembangan berikutnya.</p>
+    </div>
+
+    <div class="products__filter reveal" data-reveal data-product-filter role="tablist" aria-label="Filter produk berdasarkan daerah">
+      <button class="filter-chip is-active" type="button" data-filter="all" role="tab" aria-selected="true">Semua</button>
+      <button class="filter-chip" type="button" data-filter="Aceh" role="tab" aria-selected="false">Aceh</button>
+      <button class="filter-chip" type="button" data-filter="Sulawesi" role="tab" aria-selected="false">Sulawesi</button>
+      <button class="filter-chip" type="button" data-filter="Bali" role="tab" aria-selected="false">Bali</button>
+      <button class="filter-chip" type="button" data-filter="Nusa Tenggara" role="tab" aria-selected="false">Nusa Tenggara</button>
+      <button class="filter-chip" type="button" data-filter="Jawa Barat" role="tab" aria-selected="false">Jawa Barat</button>
+    </div>
+
+    <div class="products__carousel-wrap">
+      <div class="products__carousel" id="productsCarousel" tabindex="0" aria-label="Daftar produk" data-product-list>
+        <!-- diisi oleh script.js dari DUMMY_PRODUCTS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ KENAPA KOPI NUSANTARA ============ -->
+  <section class="why" aria-label="Kenapa memilih Kopi Nusantara">
+    <div class="section-head">
+      <p class="eyebrow reveal" data-reveal>Komitmen Kami</p>
+      <h2 class="reveal" data-reveal>Kenapa Harus Memilih<br>Kopi Nusantara?</h2>
+    </div>
+
+    <div class="why__grid">
+      <div class="why__item reveal" data-reveal>
+        <span class="why__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/></svg></span>
+        <h3>Kopi Nusantara Pilihan</h3>
+        <p>Setiap biji disortir manual untuk memastikan hanya kualitas terbaik yang sampai ke tangan Anda.</p>
+      </div>
+      <div class="why__item reveal" data-reveal>
+        <span class="why__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 2v6M12 22v-6M4.9 4.9l4.2 4.2M14.9 14.9l4.2 4.2M2 12h6M16 12h6M4.9 19.1l4.2-4.2M14.9 9.1l4.2-4.2"/></svg></span>
+        <h3>Asal Kopi Terjaga</h3>
+        <p>Kami menelusuri setiap batch hingga ke kebun asalnya, menjaga jejak dan cerita di baliknya.</p>
+      </div>
+      <div class="why__item reveal" data-reveal>
+        <span class="why__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/></svg></span>
+        <h3>Pilihan Berat Beragam</h3>
+        <p>Dari 100 gram untuk mencoba hingga 1 kilogram untuk kebutuhan harian — sesuai ritme Anda.</p>
+      </div>
+      <div class="why__item reveal" data-reveal>
+        <span class="why__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg></span>
+        <h3>Dikirim Dengan Perhatian</h3>
+        <p>Dikemas rapat agar aroma dan kesegaran tetap terjaga sampai di depan pintu Anda.</p>
+      </div>
+      <div class="why__item reveal" data-reveal>
+        <span class="why__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 3c-3 3-5 6-5 9a5 5 0 0 0 10 0c0-3-2-6-5-9z"/><path d="M12 21v-4"/></svg></span>
+        <h3>Kemasan Ramah Lingkungan</h3>
+        <p>Menggunakan kemasan yang dapat didaur ulang untuk menjaga kesegaran tanpa membebani bumi.</p>
+      </div>
+      <div class="why__item reveal" data-reveal>
+        <span class="why__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M17 20h-10a4 4 0 0 1 0-8h.5"/><circle cx="9" cy="7" r="3.2"/><path d="M15 20v-2a4 4 0 0 0-3-3.87"/><circle cx="17" cy="7" r="2.6"/></svg></span>
+        <h3>Pendampingan Untuk Mitra</h3>
+        <p>Kami terbuka membantu reseller dan mitra usaha kecil yang ingin menjual Kopi Nusantara di daerahnya.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ KIOS / OUTLET ============ -->
+  <section class="kios" id="kios" aria-label="Kios dan outlet Kopi Nusantara">
+    <div class="section-head">
+      <p class="eyebrow reveal" data-reveal>Kunjungi Kami</p>
+      <h2 class="reveal" data-reveal>Kios Kopi Nusantara</h2>
+      <p class="section-head__desc reveal" data-reveal>
+        Bukan hanya di layar — datang dan rasakan langsung Kopi Nusantara di kios kami.
+      </p>
+    </div>
+
+    <div class="kios__carousel-wrap">
+      <div class="kios__carousel" id="kiosCarousel" tabindex="0" aria-label="Galeri kios Kopi Nusantara, geser untuk melihat lebih banyak">
+
+        <article class="kios-slide">
+          <div class="kios-slide__img">
+            <img src="assets/images/kios-01.jpg" alt="Kios Kopi Nusantara 01" loading="lazy" onerror="this.closest('.kios-slide').style.display='none'">
+          </div>
+          <p class="kios-slide__label">Kios 01</p>
+        </article>
+
+        <article class="kios-slide">
+          <div class="kios-slide__img">
+            <img src="assets/images/kios-02.jpg" alt="Kios Kopi Nusantara 02" loading="lazy" onerror="this.closest('.kios-slide').style.display='none'">
+          </div>
+          <p class="kios-slide__label">Kios 02</p>
+        </article>
+
+        <article class="kios-slide">
+          <div class="kios-slide__img">
+            <img src="assets/images/kios-03.jpg" alt="Kios Kopi Nusantara 03" loading="lazy" onerror="this.closest('.kios-slide').style.display='none'">
+          </div>
+          <p class="kios-slide__label">Kios 03</p>
+        </article>
+
+        <article class="kios-slide">
+          <div class="kios-slide__img">
+            <img src="assets/images/kios-04.jpg" alt="Kios Kopi Nusantara 04" loading="lazy" onerror="this.closest('.kios-slide').style.display='none'">
+          </div>
+          <p class="kios-slide__label">Kios 04</p>
+        </article>
+
+      </div>
+
+      <div class="carousel-nav">
+        <button class="carousel-nav__btn" data-carousel-prev="kios" aria-label="Kios sebelumnya">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <button class="carousel-nav__btn" data-carousel-next="kios" aria-label="Kios berikutnya">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LOKASI ============ -->
+  <section class="location" id="lokasi" aria-label="Lokasi Pusat Kopi Nusantara">
+    <div class="section-head">
+      <p class="eyebrow reveal" data-reveal>Lokasi</p>
+      <h2 class="reveal" data-reveal>Lokasi Pusat Kopi Nusantara</h2>
+      <p class="section-head__desc reveal" data-reveal>
+        Temukan pusat Kopi Nusantara dan kunjungi kami secara langsung.
+      </p>
+    </div>
+
+    <div class="location__wrap reveal" data-reveal>
+      <div class="location__map">
+        <iframe
+          src="https://www.google.com/maps?q=-6.309000,106.994600&z=17&output=embed"
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+          allowfullscreen
+          title="Peta lokasi Pusat Kopi Nusantara">
+        </iframe>
+      </div>
+
+      <div class="location__info">
+        <p class="eyebrow">Kunjungi Kami</p>
+        <h3>Pusat Kopi Nusantara</h3>
+        <p class="location__address">Bantargebang, Bekasi, Jawa Barat</p>
+        <p class="location__coords">Koordinat: -6.309000, 106.994600</p>
+        <p class="location__whatsapp">
+          WhatsApp: <a href="https://wa.me/6285178110563" target="_blank" rel="noopener noreferrer">+62 851-7811-0563</a>
+        </p>
+        <div class="location__actions">
+          <a href="https://maps.app.goo.gl/Qg8MYNNN2apK3epp6" target="_blank" rel="noopener noreferrer" class="btn btn--gold">Lihat di Google Maps</a>
+          <a href="https://wa.me/6285178110563" target="_blank" rel="noopener noreferrer" class="btn btn--ghost">Chat via WhatsApp</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ IMMERSIVE COFFEE MOMENT ============ -->
+  <section class="moment reveal" data-reveal aria-label="Momen kopi">
+    <div class="moment__media">
+      <img src="assets/images/hero.jpg" alt="Suasana menikmati kopi dengan tenang" loading="lazy">
+      <div class="moment__overlay"></div>
+    </div>
+    <blockquote class="moment__quote">
+      <p>“Kopi bukan sekadar minuman —<br>ia adalah cara sederhana untuk merasakan sebuah tempat.”</p>
+    </blockquote>
+  </section>
+
+  <!-- ============ JURNAL / JOURNAL (editorial layout) ============ -->
+  <section class="journal" id="blog" aria-label="Jurnal kopi">
+    <div class="section-head section-head--left">
+      <p class="eyebrow reveal" data-reveal>Jurnal</p>
+      <h2 class="reveal" data-reveal>Jelajahi Dunia Kopi</h2>
+    </div>
+
+    <div class="journal__list">
+      <a href="https://rri.co.id/takengon/regional/1016317/sejarah-kopi-gayo-warisan-budaya-dari-dataran-tinggi-aceh" target="_blank" rel="noopener noreferrer" class="journal__row reveal" data-reveal data-journal-row>
+        <span class="journal__index">01</span>
+        <div class="journal__media">
+          <img src="assets/images/blog-1.jpg" alt="Ilustrasi artikel Mengenal Kopi Gayo" loading="lazy">
+        </div>
+        <div class="journal__body">
+          <p class="journal__meta"><span>Asal Kopi</span><time>12 Agu 2026</time></p>
+          <h3 class="journal__title">Mengenal Kopi Gayo</h3>
+          <p class="journal__desc">Menelusuri dataran tinggi Aceh, tempat lahirnya salah satu Arabika paling dihormati di dunia.</p>
+          <span class="journal__link">Baca Selengkapnya <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </div>
+      </a>
+
+      <a href="https://www.aeki-aice.org/mengenal-perbedaan-kopi-robusta-dan-arabika/" target="_blank" rel="noopener noreferrer" class="journal__row reveal" data-reveal data-journal-row>
+        <span class="journal__index">02</span>
+        <div class="journal__media">
+          <img src="assets/images/blog-2.jpg" alt="Ilustrasi artikel Mengenal Arabika dan Robusta" loading="lazy">
+        </div>
+        <div class="journal__body">
+          <p class="journal__meta"><span>Pengetahuan</span><time>03 Agu 2026</time></p>
+          <h3 class="journal__title">Mengenal Arabika &amp; Robusta</h3>
+          <p class="journal__desc">Dua jenis kopi, dua karakter berbeda — memahami mana yang cocok dengan cara Anda menyeduh.</p>
+          <span class="journal__link">Baca Selengkapnya <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </div>
+      </a>
+
+      <a href="https://mevin.id/jejak-kolonial-secangkir-kisah-dari-tanah-rempah-perjalanan-kopi-nusantara/" target="_blank" rel="noopener noreferrer" class="journal__row reveal" data-reveal data-journal-row>
+        <span class="journal__index">03</span>
+        <div class="journal__media">
+          <img src="assets/images/blog-3.jpg" alt="Ilustrasi artikel Perjalanan Kopi Nusantara" loading="lazy">
+        </div>
+        <div class="journal__body">
+          <p class="journal__meta"><span>Cerita</span><time>27 Jul 2026</time></p>
+          <h3 class="journal__title">Perjalanan Kopi Nusantara</h3>
+          <p class="journal__desc">Dari kebun kecil di pelosok daerah hingga secangkir kopi di meja Anda — sebuah perjalanan panjang.</p>
+          <span class="journal__link">Baca Selengkapnya <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </div>
+      </a>
+    </div>
+  </section>
+
+  <!-- ============ TESTIMONIAL ============ -->
+  <!-- CATATAN: rating & ulasan di bawah adalah data dummy UI, akan diganti data asli dari database. -->
+  <section class="testimonial" aria-label="Ulasan pelanggan">
+    <div class="section-head">
+      <p class="eyebrow reveal" data-reveal>Cerita Pelanggan</p>
+      <h2 class="reveal" data-reveal>Apa Kata Mereka</h2>
+    </div>
+
+    <div class="testimonial__wrap reveal" data-reveal>
+      <div class="testimonial__track" id="testimonialTrack" data-testimonial-list>
+        <!-- diisi oleh script.js dari DUMMY_TESTIMONIALS -->
+      </div>
+      <div class="testimonial__dots" id="testimonialDots" aria-hidden="true"></div>
+    </div>
+  </section>
+
+  <!-- ============ FINAL CTA ============ -->
+  <section class="final-cta reveal" data-reveal aria-label="Ajakan menjelajahi kopi">
+    <h2>Temukan Kopi Nusantara<br>Favoritmu.</h2>
+    <a href="#produk" class="btn btn--gold">Jelajahi Semua Kopi</a>
+  </section>
+
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer class="footer" id="kontak">
+  <div class="footer__top">
+    <div class="footer__brand">
+      <div class="footer__brand-media">
+        <video
+          class="footer__video"
+          autoplay
+          muted
+          loop
+          playsinline
+          preload="metadata"
+          aria-label="Video Kopi Nusantara">
+          <source src="assets/videos/footer.mp4" type="video/mp4">
+        </video>
+      </div>
+      <p>Biji kopi pilihan dari berbagai daerah Indonesia, dikirim untuk menemani setiap momen Anda.</p>
+    </div>
+
+    <div class="footer__col">
+      <h4>Navigasi</h4>
+      <a href="#home">Home</a>
+      <a href="#produk">Produk</a>
+      <a href="#tentang">Tentang Kami</a>
+      <a href="#lokasi">Lokasi</a>
+      <a href="#blog">Blog</a>
+    </div>
+
+    <div class="footer__col">
+      <h4>Kontak</h4>
+      <a href="mailto:halo@kopinusantara.id">halo@kopinusantara.id</a>
+      <a href="https://wa.me/6285178110563" target="_blank" rel="noopener noreferrer">+62 851-7811-0563</a>
+      <a href="#" data-placeholder>Jakarta, Indonesia</a>
+    </div>
+
+    <div class="footer__col">
+      <h4>Sosial Media</h4>
+      <a href="#" data-placeholder>Instagram</a>
+      <a href="#" data-placeholder>TikTok</a>
+      <a href="https://wa.me/6285178110563" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+    </div>
+  </div>
+
+  <div class="footer__bottom">
+    <p>&copy; <span id="year"></span> Kopi Nusantara. Seluruh hak cipta dilindungi.</p>
+    <a href="#home" class="footer__totop" data-nav>Kembali ke Atas
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+    </a>
+  </div>
+</footer>
+
+<!-- ============ PRODUCT DETAIL MODAL ============ -->
+<div class="product-modal" id="productModal" aria-hidden="true">
+  <div class="product-modal__backdrop" data-modal-close></div>
+  <div class="product-modal__panel" role="dialog" aria-modal="true" aria-labelledby="modalProductName">
+    <button class="product-modal__close" type="button" data-modal-close aria-label="Tutup detail produk">&times;</button>
+    <div class="product-modal__media">
+      <img id="modalImage" src="" alt="">
+    </div>
+    <div class="product-modal__body">
+      <p class="product-modal__origin" id="modalOrigin"></p>
+      <h3 id="modalProductName"></h3>
+      <p class="product-modal__type" id="modalType"></p>
+      <p class="product-modal__rating" id="modalRating"></p>
+      <div class="product-modal__weights" id="modalWeights" role="group" aria-label="Pilih berat"></div>
+      <div class="product-modal__footer">
+        <span class="product-modal__price" id="modalPrice"></span>
+        <button class="btn btn--primary" type="button" id="modalAddCart">Tambah ke Keranjang</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ CART DRAWER ============ -->
+<div class="cart-drawer" id="cartDrawer" aria-hidden="true">
+  <div class="cart-drawer__backdrop" data-cart-close></div>
+  <div class="cart-drawer__panel" role="dialog" aria-modal="true" aria-label="Keranjang belanja">
+    <div class="cart-drawer__head">
+      <h3>Keranjang Anda</h3>
+      <button class="cart-drawer__close" type="button" data-cart-close aria-label="Tutup keranjang">&times;</button>
+    </div>
+    <div class="cart-drawer__items" id="cartItems"></div>
+    <div class="cart-drawer__footer">
+      <div class="cart-drawer__subtotal"><span>Subtotal</span><strong id="cartSubtotal">Rp 0</strong></div>
+      <button class="btn btn--gold cart-drawer__checkout" type="button" id="cartCheckoutBtn">Checkout</button>
+      <p class="cart-drawer__note">Fitur checkout &amp; pembayaran akan tersedia pada tahap pengembangan berikutnya.</p>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+<!-- React + Babel Standalone: transpile JSX langsung di browser,
+     tanpa perlu build step, tetap jalan di hosting statis. -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script type="text/babel" data-presets="react" src="loader.jsx"></script>
+
+<script src="script.js"></script>
+<script src="motion.js"></script>
+</body>
+</html>
