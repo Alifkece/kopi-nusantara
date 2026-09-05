@@ -271,44 +271,6 @@
   })();
 
   /* =======================================================
-     4b. HERO 3D BEAN — subtle floating signature visual
-     - CSS handles the slow float/rotation on its own.
-     - On desktop with a precise pointer, add a very light
-       mouse-parallax on top of that float.
-     - On touch devices it stays a quiet CSS float only —
-       no mouse listener, no added complexity.
-  ======================================================= */
-  (function initHeroBean() {
-    var bean = document.getElementById('heroBean');
-    var frame = document.querySelector('.hero__frame');
-    if (!bean || !frame || prefersReducedMotion) return;
-    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
-
-    var raf = null;
-    var targetX = 0, targetY = 0;
-    var MAX_OFFSET = 10; // px, tetap subtle
-
-    function apply() {
-      raf = null;
-      bean.style.setProperty('--bean-x', targetX.toFixed(1) + 'px');
-      bean.style.setProperty('--bean-y', targetY.toFixed(1) + 'px');
-    }
-
-    frame.addEventListener('mousemove', function (e) {
-      var rect = frame.getBoundingClientRect();
-      var px = (e.clientX - rect.left) / rect.width - 0.5;
-      var py = (e.clientY - rect.top) / rect.height - 0.5;
-      targetX = px * MAX_OFFSET * 2;
-      targetY = py * MAX_OFFSET * 2;
-      if (!raf) raf = window.requestAnimationFrame(apply);
-    });
-    frame.addEventListener('mouseleave', function () {
-      targetX = 0; targetY = 0;
-      if (!raf) raf = window.requestAnimationFrame(apply);
-    });
-  })();
-
-  /* =======================================================
      5. SCROLL REVEAL (IntersectionObserver)
   ======================================================= */
   var revealEls = document.querySelectorAll('[data-reveal]');
@@ -465,7 +427,10 @@
     { id: 'toraja-sapan', name: 'Toraja Sapan', origin: 'Sulawesi', type: 'Medium Roast', price: 42500, image: 'assets/images/product-toraja.jpg', rating: 4.8, reviews: 96, badge: 'Baru', weights: [100, 250, 500, 1000] },
     { id: 'kintamani-citrus', name: 'Kintamani Citrus', origin: 'Bali', type: 'Light Roast', price: 41000, image: 'assets/images/product-kintamani.jpg', rating: 4.7, reviews: 74, badge: null, weights: [100, 250, 500, 1000] },
     { id: 'flores-bajawa', name: 'Flores Bajawa', origin: 'Nusa Tenggara', type: 'Medium Roast', price: 40000, image: 'assets/images/product-flores.jpg', rating: 4.8, reviews: 61, badge: null, weights: [100, 250, 500, 1000] },
-    { id: 'java-preanger', name: 'Java Preanger', origin: 'Jawa Barat', type: 'Dark Roast', price: 38000, image: 'assets/images/product-java.jpg', rating: 4.6, reviews: 53, badge: null, weights: [100, 250, 500, 1000] }
+    { id: 'java-preanger', name: 'Java Preanger', origin: 'Jawa Barat', type: 'Dark Roast', price: 38000, image: 'assets/images/product-java.jpg', rating: 4.6, reviews: 53, badge: null, weights: [100, 250, 500, 1000] },
+    { id: 'biji-arabika', name: 'Biji Kopi Arabika', origin: 'Aceh', type: 'Light Roast', price: 37000, image: 'assets/images/product-arabika.jpg', rating: 4.7, reviews: 40, badge: null, weights: [100, 250, 500, 1000] },
+    { id: 'biji-robusta', name: 'Biji Kopi Robusta', origin: 'Jawa Barat', type: 'Dark Roast', price: 28000, image: 'assets/images/product-robusta.jpg', rating: 4.6, reviews: 35, badge: null, weights: [100, 250, 500, 1000] },
+    { id: 'kopi-luwak', name: 'Kopi Luwak Premium', origin: 'Bali', type: 'Medium Roast', price: 150000, image: 'assets/images/product-luwak.jpg', rating: 4.9, reviews: 22, badge: 'Premium', weights: [100, 250, 500, 1000] }
   ];
 
   var activeFilter = 'all';
