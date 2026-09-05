@@ -229,18 +229,9 @@ svg{ display: block; }
   align-items: center;
   gap: 24px;
 }
-.navbar__logo{
-  justify-self: center;
-  display: grid;
-  place-items: center;
-  width: 56px; height: 56px;
-  background: var(--c-cream);
-  border-radius: 50%;
-  box-shadow: 0 4px 14px rgba(0,0,0,.22);
-  padding: 6px;
-}
-.navbar__logo img{ height: 40px; width: auto; display: block; transition: transform var(--dur-s) var(--ease-spring); }
-.navbar__logo:hover img{ transform: scale(1.08) rotate(-4deg); }
+.navbar__logo{ justify-self: center; }
+.navbar__logo img{ height: 34px; width: auto; transition: transform var(--dur-s) var(--ease-spring); }
+.navbar__logo:hover img{ transform: scale(1.06) rotate(-2deg); }
 
 .navbar__actions{ display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 .icon-btn{
@@ -307,32 +298,12 @@ svg{ display: block; }
   100%{ opacity: 0; }
 }
 
-/* --- Mobile: navbar lebih ramping, badge logo tidak mendominasi --- */
-@media (max-width: 991.98px){
-  .navbar{ padding: 10px 0; }
-  .navbar__inner{ gap: 12px; }
-  .navbar__logo{ width: 40px; height: 40px; padding: 4px; box-shadow: 0 2px 8px rgba(0,0,0,.2); }
-  .navbar__logo img{ height: 26px; }
-  .hamburger{ height: 34px; gap: 7px; }
-  .hamburger__bars i{ width: 19px; }
-  .hamburger em{ font-size: 12px; }
-  .icon-btn{ width: 32px; height: 32px; }
-  .icon-btn svg{ width: 16px; height: 16px; }
-  .navbar__actions{ gap: 2px; }
-}
-@media (max-width: 380px){
-  .hamburger em{ display: none; }
-}
-
 /* Scrolled state — sedikit lebih padat & shadow lebih tegas, warna tetap konsisten */
 .navbar.is-scrolled{
   padding: 12px 0;
   background: rgba(41, 34, 27, .98);
   border-bottom-color: var(--c-line-light);
   box-shadow: 0 8px 30px rgba(0,0,0,.18);
-}
-@media (max-width: 991.98px){
-  .navbar.is-scrolled{ padding: 8px 0; }
 }
 
 /* =========================================================
@@ -468,37 +439,24 @@ svg{ display: block; }
 
 /* =========================================================
    HERO
-   Struktur: NAVBAR -> HERO (kolom visual + kolom konten sejajar
-   di desktop, bertumpuk di mobile). Logo besar tampil di kolom
-   konten agar brand langsung terbaca sejak awal.
+   Struktur baru: NAVBAR -> HERO IMAGE 16:9 -> INDICATOR -> TEXT -> CTA
+   Gambar dan teks sengaja dipisah total agar tidak ada overlap.
 ========================================================= */
 .hero{
   position: relative;
   padding-top: 72px; /* ruang untuk navbar fixed solid di atas konten */
-  padding-bottom: 48px;
   background: var(--c-cream);
   overflow: hidden;
 }
 
-.hero__inner{
-  max-width: var(--container);
-  margin: 0 auto;
-  padding: 24px var(--gutter) 0;
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-}
-
-.hero__visual{ width: 100%; }
-
-/* --- Frame gambar / slideshow --- */
+/* --- Frame gambar / slideshow, wajib 16:9 di semua breakpoint --- */
 .hero__frame{
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
   overflow: hidden;
   background: var(--c-espresso);
-  border-radius: var(--radius-l);
+  border-radius: 0 0 var(--radius-l) var(--radius-l);
 }
 .hero__media{ position: absolute; inset: 0; }
 .hero__img{
@@ -507,23 +465,21 @@ svg{ display: block; }
   object-fit: cover;
   object-position: center 45%;
   opacity: 0;
-  transform: translateY(10px);
+  transform: scale(1.08);
   transition: opacity 1.8s var(--ease);
   will-change: transform, opacity;
 }
 .hero__img.is-active{
   opacity: 1;
   z-index: 1;
-  animation: heroDrift 8s var(--ease) forwards;
+  animation: heroZoom 8s var(--ease) forwards;
 }
-/* Crossfade + a very subtle vertical drift only — never scales/zooms the
-   photo, per brand direction (no Ken Burns, image must stay natural). */
-@keyframes heroDrift{
-  from{ transform: translateY(10px); }
-  to{ transform: translateY(0); }
+@keyframes heroZoom{
+  from{ transform: scale(1.08); }
+  to{ transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce){
-  .hero__img.is-active{ animation: none; transform: translateY(0); }
+  .hero__img.is-active{ animation: none; transform: scale(1); }
 }
 .hero__overlay{
   position: absolute; inset: 0;
@@ -531,24 +487,19 @@ svg{ display: block; }
   pointer-events: none;
 }
 
-/* --- Desktop: image and content sit side by side, like a proper hero panel --- */
+/* --- Desktop: controlled, contained hero (never a giant full-viewport image) --- */
 @media (min-width: 992px){
-  .hero{ padding-top: 108px; padding-bottom: 64px; }
-  .hero__inner{
-    flex-direction: row;
-    align-items: center;
-    gap: clamp(40px, 5vw, 76px);
-    padding-top: 12px;
-  }
-  .hero__visual{ flex: 1.05 1 0; min-width: 0; }
-  .hero__content{ flex: 0.95 1 0; min-width: 0; }
+  .hero{ padding-top: 108px; }
   .hero__frame{
     aspect-ratio: auto;
-    height: clamp(440px, 38vw, 560px);
+    height: clamp(420px, 44vw, 580px);
+    max-width: var(--container);
+    margin: 0 auto;
+    border-radius: var(--radius-l);
   }
 }
 @media (min-width: 1440px){
-  .hero__frame{ height: clamp(480px, 32vw, 600px); }
+  .hero__frame{ height: clamp(460px, 36vw, 600px); }
 }
 
 .hero__badge{
@@ -610,19 +561,13 @@ svg{ display: block; }
   background: var(--c-gold);
 }
 
-/* --- Text content: kolom kedua, sejajar dengan gambar di desktop --- */
+/* --- Text content: full di bawah gambar, tidak overlap --- */
 .hero__content{
   position: relative;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 8px var(--gutter) 64px;
   width: 100%;
-}
-.hero__logo{
-  display: block;
-  width: clamp(150px, 15vw, 210px);
-  height: auto;
-  margin: 0 0 18px;
-}
-@media (min-width: 992px){
-  .hero__logo{ width: clamp(190px, 13vw, 240px); margin-bottom: 22px; }
 }
 .hero__content .eyebrow{ color: var(--c-gold); }
 .hero__content .eyebrow::before{ background: var(--c-gold); }
@@ -703,9 +648,9 @@ svg{ display: block; }
 .hero__content .btn--ghost:hover{ border-color: var(--c-coffee); }
 
 @media (max-width: 780px){
-  .hero{ padding-top: 64px; padding-bottom: 40px; }
-  .hero__frame{ border-radius: var(--radius-m); }
-  .hero__inner{ padding-top: 16px; gap: 22px; }
+  .hero{ padding-top: 64px; }
+  .hero__frame{ border-radius: 0 0 var(--radius-m) var(--radius-m); }
+  .hero__content{ padding-top: 4px; padding-bottom: 48px; }
 }
 
 /* =========================================================
@@ -940,32 +885,27 @@ svg{ display: block; }
 .filter-chip:active{ transform: scale(.93); }
 .filter-chip.is-active{ background: var(--c-espresso); color: var(--c-offwhite); border-color: var(--c-espresso); }
 .products__carousel-wrap{ max-width: var(--container); margin: 0 auto; padding: 0 var(--gutter); }
-
-/* Grid mengikuti breakpoint Bootstrap 5 (576 / 768 / 992 / 1200) —
-   kartu produk turun ke bawah, tidak pernah di-slide horizontal. */
 .products__carousel{
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
+  display: flex; gap: 22px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  cursor: grab;
+  padding-bottom: 4px;
 }
-@media (min-width: 576px){
-  .products__carousel{ grid-template-columns: repeat(2, 1fr); gap: 22px; }
-}
-@media (min-width: 992px){
-  .products__carousel{ grid-template-columns: repeat(3, 1fr); gap: 26px; }
-}
-@media (min-width: 1200px){
-  .products__carousel{ gap: 28px; }
-}
+.products__carousel.is-dragging{ cursor: grabbing; scroll-snap-type: none; }
+.products__carousel::-webkit-scrollbar{ display: none; }
 
 .product-card{
+  flex: 0 0 clamp(230px, 26vw, 280px);
+  scroll-snap-align: start;
   background: var(--c-cream);
   border-radius: var(--radius-m);
   border: 1px solid var(--c-line);
   overflow: hidden;
-  box-shadow: 0 2px 10px rgba(36,22,17,.05);
   transition: transform var(--dur-s) var(--ease-spring), box-shadow var(--dur-s) var(--ease), border-color var(--dur-s) var(--ease);
   will-change: transform;
+  user-select: none;
 }
 /* Quiet, refined hover — premium catalog feel. No 3D tilt on product cards. */
 .product-card:hover{ box-shadow: 0 24px 48px rgba(36,22,17,.14); border-color: var(--c-gold-soft); }
@@ -1530,151 +1470,4 @@ svg{ display: block; }
 
   .mobile-menu{ width: 84vw; padding: 80px 20px 28px; }
   .mobile-menu__nav a{ font-size: clamp(24px, 7.5vw, 30px); gap: 10px; padding: 8px 0; }
-}
-
-/* =========================================================
-   PREMIUM LOADING SCREEN (React component: loader.jsx)
-   ---------------------------------------------------------
-   body.loader-active mengunci scroll selama overlay tampil.
-   Semua warna & radius memakai token yang sama dengan sisa
-   situs supaya terasa menyatu, bukan tempelan terpisah.
-========================================================= */
-body.loader-active{ overflow: hidden; }
-
-.premium-loader{
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background:
-    radial-gradient(120% 120% at 50% 12%, rgba(173,138,82,.16), transparent 60%),
-    linear-gradient(160deg, var(--c-espresso) 0%, #201a14 100%);
-  will-change: opacity, transform;
-}
-.premium-loader__grain{
-  position: absolute; inset: 0;
-  opacity: .05;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  pointer-events: none;
-}
-
-.premium-loader__stage{
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 18px;
-  padding: 0 24px;
-  text-align: center;
-}
-
-/* --- Steam wisps naik di belakang logo --- */
-.premium-loader__steamWrap{
-  position: absolute;
-  top: -34px; left: 50%;
-  transform: translateX(-50%);
-  width: 60px; height: 40px;
-  display: flex; justify-content: center; align-items: flex-end;
-  gap: 8px;
-  pointer-events: none;
-}
-.premium-loader__steam{
-  display: block;
-  width: 6px; height: 30px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(246,238,225,0), rgba(246,238,225,.65));
-  opacity: 0;
-}
-.premium-loader__steam--2{ height: 24px; }
-.premium-loader__steam--3{ height: 34px; }
-
-/* --- Logo + ring pemuatan berputar --- */
-.premium-loader__logoWrap{
-  position: relative;
-  width: clamp(120px, 30vw, 168px);
-  height: clamp(120px, 30vw, 168px);
-  display: grid;
-  place-items: center;
-}
-.premium-loader__ring{
-  position: absolute; inset: 0;
-  width: 100%; height: 100%;
-  transform-origin: 50% 50%;
-}
-.premium-loader__ring-track{
-  fill: none;
-  stroke: rgba(251,248,243,.12);
-  stroke-width: 2.5;
-}
-.premium-loader__ring-arc{
-  fill: none;
-  stroke: var(--c-gold);
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  stroke-dasharray: 340;
-  stroke-dashoffset: 230;
-  filter: drop-shadow(0 0 6px rgba(173,138,82,.55));
-}
-.premium-loader__logo{
-  position: relative;
-  width: 74%;
-  height: auto;
-  filter: drop-shadow(0 8px 22px rgba(0,0,0,.35));
-}
-
-.premium-loader__tagline{
-  font-family: var(--f-display);
-  font-style: italic;
-  font-size: clamp(14px, 3vw, 17px);
-  color: var(--c-offwhite);
-  opacity: .82;
-  letter-spacing: .01em;
-  margin-top: 2px;
-}
-
-.premium-loader__bar{
-  width: clamp(160px, 40vw, 220px);
-  height: 3px;
-  border-radius: 999px;
-  background: rgba(251,248,243,.14);
-  overflow: hidden;
-  margin-top: 6px;
-}
-.premium-loader__bar-fill{
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--c-gold-soft), var(--c-gold));
-  transition: width .25s var(--ease);
-}
-.premium-loader__percent{
-  font-family: var(--f-body);
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: .08em;
-  color: var(--c-gold-soft);
-}
-
-/* --- CSS-only fallback tampil sebelum React & Babel selesai
-       diparse, supaya tidak ada flash konten polos di awal --- */
-.premium-loader--fallback{
-  position: fixed; inset: 0; z-index: 9999;
-  display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(160deg, var(--c-espresso) 0%, #201a14 100%);
-}
-.premium-loader--fallback img{
-  width: clamp(120px, 30vw, 160px);
-  height: auto;
-  animation: loaderFallbackPulse 1.4s ease-in-out infinite;
-}
-@keyframes loaderFallbackPulse{
-  0%, 100%{ opacity: .55; transform: scale(.96); }
-  50%{ opacity: 1; transform: scale(1.02); }
-}
-
-@media (prefers-reduced-motion: reduce){
-  .premium-loader__ring{ animation: none !important; }
-  .premium-loader__steam{ display: none; }
 }
