@@ -2,45 +2,9 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<script>
-  /* FIX #1 — INITIAL SCROLL POSITION
-     Browser bisa memulihkan scroll position dari sesi sebelumnya
-     (scroll restoration) sebelum CSS/JS lain sempat jalan, sehingga
-     halaman terlihat "sudah di-scroll" saat pertama dibuka. Matikan
-     di sini, sedini mungkin, sebelum apa pun lain dieksekusi. */
-  if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
-</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Kopi Nusantara — Rasa Nusantara, Dalam Setiap Seduhan</title>
 <meta name="description" content="Biji kopi pilihan dari berbagai daerah Indonesia — dipilih dengan cermat, disangrai dengan perhatian, dan dikirim untuk menemani setiap momen.">
-
-<!-- FIX #2 — ROOT CAUSE dari "black circle / flash hitam":
-     Google Fonts & Bootstrap CDN adalah render-blocking stylesheet
-     yang dimuat SEBELUM style.css lokal. Di koneksi lambat/CDN yang
-     telat, browser bisa sempat menggambar halaman sebelum style.css
-     siap. Style loader fallback di bawah ini di-inline langsung di
-     <head> (bukan lewat file eksternal) supaya overlay loading SELALU
-     aktif & full-screen sejak first paint, apa pun kondisi jaringan. */
-<style>
-  *,*::before,*::after{ box-sizing: border-box; }
-  html{ scroll-behavior: smooth; }
-  body{ margin: 0; background: #F6EEE1; overflow-x: hidden; }
-  body.loader-active{ overflow: hidden; }
-  .premium-loader--fallback{
-    position: fixed; inset: 0; z-index: 9999;
-    display: flex; align-items: center; justify-content: center;
-    background: linear-gradient(160deg, #29221B 0%, #201a14 100%);
-  }
-  .premium-loader--fallback img{
-    width: clamp(120px, 30vw, 160px); height: auto;
-    animation: loaderFallbackPulse 1.4s ease-in-out infinite;
-  }
-  @keyframes loaderFallbackPulse{
-    0%, 100%{ opacity: .55; transform: scale(.96); }
-    50%{ opacity: 1; transform: scale(1.02); }
-  }
-</style>
-
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
@@ -48,17 +12,6 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-<!-- ============ PREMIUM LOADING SCREEN ============
-     #loader-root diisi oleh loader.jsx (React). Fallback CSS-only
-     di dalamnya tampil dulu selama React & Babel masih diparse,
-     lalu otomatis digantikan begitu React selesai mount — jadi
-     tidak pernah ada jeda tanpa animasi. -->
-<div id="loader-root">
-  <div class="premium-loader--fallback" id="loaderFallback">
-    <img src="assets/images/logo-wordmark.png" alt="Kopi Nusantara">
-  </div>
-</div>
 
 <div class="grain-overlay" aria-hidden="true"></div>
 <div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
@@ -72,7 +25,7 @@
     </button>
 
     <a href="#" class="navbar__logo" aria-label="Kopi Nusantara — Beranda">
-      <img src="assets/images/logo-icon.png" alt="Kopi Nusantara" width="52" height="40">
+      <img src="assets/images/logo.png" alt="Kopi Nusantara" width="140" height="40">
     </a>
 
     <nav class="navbar__nav" aria-label="Navigasi utama desktop">
@@ -136,65 +89,59 @@
 
   <!-- ============ HERO ============ -->
   <section class="hero" aria-label="Perkenalan Kopi Nusantara">
-    <div class="hero__inner">
 
-      <!-- Kolom visual: gambar + indikator slide, dikemas jadi satu blok -->
-      <div class="hero__visual reveal" data-reveal>
-        <div class="hero__frame">
-          <div class="hero__media" id="heroMedia" data-hero-slideshow>
-            <img src="assets/images/hero.jpg" alt="Suasana Kopi Nusantara" class="hero__img is-active" data-hero-slide loading="eager">
-            <img src="assets/images/hero-02.jpg" alt="Suasana Kopi Nusantara" class="hero__img" data-hero-slide loading="lazy">
-            <img src="assets/images/hero-03.jpg" alt="Suasana Kopi Nusantara" class="hero__img" data-hero-slide loading="lazy">
-            <img src="assets/images/hero-04.jpg" alt="Suasana Kopi Nusantara" class="hero__img" data-hero-slide loading="lazy">
-            <div class="hero__overlay"></div>
-          </div>
+    <!-- Hero banner: image only, 16:9, terpisah dari teks -->
+    <div class="hero__frame reveal" data-reveal>
+      <div class="hero__media" id="heroMedia" data-hero-slideshow>
+        <img src="assets/images/about.jpg" alt="Suasana Kopi Nusantara" class="hero__img is-active" data-hero-slide loading="eager">
+        <img src="assets/images/hero-02.jpg" alt="Suasana Kopi Nusantara" class="hero__img" data-hero-slide loading="lazy">
+        <img src="assets/images/hero-03.jpg" alt="Suasana Kopi Nusantara" class="hero__img" data-hero-slide loading="lazy">
+        <img src="assets/images/hero-04.jpg" alt="Suasana Kopi Nusantara" class="hero__img" data-hero-slide loading="lazy">
+        <div class="hero__overlay"></div>
+      </div>
 
-          <svg class="hero__badge" viewBox="0 0 120 120" aria-hidden="true">
-            <defs><path id="heroStampPath" d="M 60,60 m -50,0 a 50,50 0 1,1 100,0 a 50,50 0 1,1 -100,0"/></defs>
-            <circle cx="60" cy="60" r="50" class="hero__badge-ring" fill="none"/>
-            <text><textPath href="#heroStampPath" startOffset="0%">KOPI NUSANTARA • SEJAK 2024 • KOPI NUSANTARA • </textPath></text>
-            <circle cx="60" cy="60" r="20" class="hero__badge-dot" fill="none"/>
+      <svg class="hero__badge" viewBox="0 0 120 120" aria-hidden="true">
+        <defs><path id="heroStampPath" d="M 60,60 m -50,0 a 50,50 0 1,1 100,0 a 50,50 0 1,1 -100,0"/></defs>
+        <circle cx="60" cy="60" r="50" class="hero__badge-ring"/>
+        <text><textPath href="#heroStampPath" startOffset="0%">KOPI NUSANTARA • SEJAK 2024 • KOPI NUSANTARA • </textPath></text>
+        <circle cx="60" cy="60" r="20" class="hero__badge-dot"/>
+      </svg>
+
+      <!-- Signature 3D element: subtle floating coffee bean, supporting visual only -->
+      <div class="hero__bean" id="heroBean" aria-hidden="true">
+        <div class="hero__bean__float">
+          <svg class="hero__bean-svg" viewBox="0 0 200 260" aria-hidden="true">
+            <defs>
+              <linearGradient id="beanGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#F6EEE1" stop-opacity=".92"/>
+                <stop offset="1" stop-color="#AD8A52" stop-opacity=".5"/>
+              </linearGradient>
+            </defs>
+            <path d="M100 10C40 10 15 70 15 130C15 190 40 250 100 250C160 250 185 190 185 130C185 70 160 10 100 10Z" fill="url(#beanGrad)" stroke="#F6EEE1" stroke-width="2" stroke-opacity=".55"/>
+            <path d="M100 25C70 70 70 190 100 235" fill="none" stroke="#29221B" stroke-width="6" stroke-linecap="round" opacity=".5"/>
           </svg>
-
-          <!-- Signature 3D element: subtle floating coffee bean, supporting visual only -->
-          <div class="hero__bean" id="heroBean" aria-hidden="true">
-            <div class="hero__bean__float">
-              <svg class="hero__bean-svg" viewBox="0 0 200 260" aria-hidden="true">
-                <defs>
-                  <linearGradient id="beanGrad" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0" stop-color="#F6EEE1" stop-opacity=".92"/>
-                    <stop offset="1" stop-color="#AD8A52" stop-opacity=".5"/>
-                  </linearGradient>
-                </defs>
-                <path d="M100 10C40 10 15 70 15 130C15 190 40 250 100 250C160 250 185 190 185 130C185 70 160 10 100 10Z" fill="url(#beanGrad)" stroke="#F6EEE1" stroke-width="2" stroke-opacity=".55"/>
-                <path d="M100 25C70 70 70 190 100 235" fill="none" stroke="#29221B" stroke-width="6" stroke-linecap="round" opacity=".5"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <!-- Slide indicator: menempel tepat di bawah gambar -->
-        <div class="hero__dots d-flex justify-content-center align-items-center gap-2" id="heroDots" data-hero-dots role="tablist" aria-label="Pilih slide hero"></div>
-      </div>
-
-      <!-- Kolom teks: logo besar + headline + CTA, sejajar dengan gambar -->
-      <div class="hero__content">
-        <img class="hero__logo" src="assets/images/logo-wordmark.png" alt="Kopi Nusantara" width="320" height="276" loading="eager">
-        <p class="eyebrow reveal" data-reveal>Kopi Pilihan Nusantara</p>
-        <h1 class="hero__headline">
-          <span class="line" data-hero-line>Rasa Nusantara,</span>
-          <span class="line" data-hero-line>Dalam Setiap Seduhan.</span>
-        </h1>
-        <p class="hero__desc reveal" data-reveal>
-          Biji kopi pilihan dari berbagai daerah Indonesia — dipilih dengan cermat, disangrai dengan perhatian, dan dikirim untuk menemani setiap momen.
-        </p>
-        <p class="hero__url reveal" data-reveal>www.kopinusantara.id</p>
-        <div class="hero__cta reveal d-flex flex-wrap gap-3" data-reveal>
-          <a href="#produk" class="btn btn--primary">Jelajahi Kopi</a>
-          <a href="#tentang" class="btn btn--ghost">Kenali Kopi Nusantara</a>
         </div>
       </div>
+    </div>
 
+    <!-- Slide indicator: di bawah gambar, di atas teks -->
+    <div class="hero__dots d-flex justify-content-center align-items-center gap-2" id="heroDots" data-hero-dots role="tablist" aria-label="Pilih slide hero"></div>
+
+    <!-- Text content: terpisah penuh dari gambar -->
+    <div class="hero__content">
+      <p class="eyebrow reveal" data-reveal>Kopi Pilihan Nusantara</p>
+      <h1 class="hero__headline">
+        <span class="line" data-hero-line>Rasa Nusantara,</span>
+        <span class="line" data-hero-line>Dalam Setiap Seduhan.</span>
+      </h1>
+      <p class="hero__desc reveal" data-reveal>
+        Biji kopi pilihan dari berbagai daerah Indonesia — dipilih dengan cermat, disangrai dengan perhatian, dan dikirim untuk menemani setiap momen.
+      </p>
+      <p class="hero__url reveal" data-reveal>www.kopinusantara.id</p>
+      <div class="hero__cta reveal d-flex flex-wrap gap-3" data-reveal>
+        <a href="#produk" class="btn btn--primary">Jelajahi Kopi</a>
+        <a href="#tentang" class="btn btn--ghost">Kenali Kopi Nusantara</a>
+      </div>
     </div>
   </section>
 
@@ -378,8 +325,16 @@
     </div>
 
     <div class="products__carousel-wrap">
-      <div class="products__carousel" id="productsCarousel" tabindex="0" aria-label="Daftar produk" data-product-list>
+      <div class="products__carousel" id="productsCarousel" tabindex="0" aria-label="Galeri produk, geser untuk melihat lebih banyak" data-product-list>
         <!-- diisi oleh script.js dari DUMMY_PRODUCTS -->
+      </div>
+      <div class="carousel-nav">
+        <button class="carousel-nav__btn" data-carousel-prev="products" aria-label="Sebelumnya">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <button class="carousel-nav__btn" data-carousel-next="products" aria-label="Berikutnya">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
       </div>
     </div>
   </section>
@@ -535,7 +490,7 @@
     </div>
 
     <div class="journal__list">
-      <a href="https://rri.co.id/takengon/regional/1016317/sejarah-kopi-gayo-warisan-budaya-dari-dataran-tinggi-aceh" target="_blank" rel="noopener noreferrer" class="journal__row reveal" data-reveal data-journal-row>
+      <a href="#" class="journal__row reveal" data-reveal data-journal-row data-placeholder>
         <span class="journal__index">01</span>
         <div class="journal__media">
           <img src="assets/images/blog-1.jpg" alt="Ilustrasi artikel Mengenal Kopi Gayo" loading="lazy">
@@ -548,7 +503,7 @@
         </div>
       </a>
 
-      <a href="https://www.aeki-aice.org/mengenal-perbedaan-kopi-robusta-dan-arabika/" target="_blank" rel="noopener noreferrer" class="journal__row reveal" data-reveal data-journal-row>
+      <a href="#" class="journal__row reveal" data-reveal data-journal-row data-placeholder>
         <span class="journal__index">02</span>
         <div class="journal__media">
           <img src="assets/images/blog-2.jpg" alt="Ilustrasi artikel Mengenal Arabika dan Robusta" loading="lazy">
@@ -561,7 +516,7 @@
         </div>
       </a>
 
-      <a href="https://mevin.id/jejak-kolonial-secangkir-kisah-dari-tanah-rempah-perjalanan-kopi-nusantara/" target="_blank" rel="noopener noreferrer" class="journal__row reveal" data-reveal data-journal-row>
+      <a href="#" class="journal__row reveal" data-reveal data-journal-row data-placeholder>
         <span class="journal__index">03</span>
         <div class="journal__media">
           <img src="assets/images/blog-3.jpg" alt="Ilustrasi artikel Perjalanan Kopi Nusantara" loading="lazy">
@@ -692,14 +647,6 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
-
-<!-- React + Babel Standalone: transpile JSX langsung di browser,
-     tanpa perlu build step, tetap jalan di hosting statis. -->
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
-<script type="text/babel" data-presets="react" src="loader.jsx"></script>
-
 <script src="script.js"></script>
 <script src="motion.js"></script>
 </body>
