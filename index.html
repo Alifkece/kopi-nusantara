@@ -88,50 +88,45 @@
 <main id="home">
 
   <!-- ============ HERO ============ -->
-  <!-- Desktop: komposisi horizontal [ TEXT ] [ VISUAL ] lewat .hero__inner (grid, lihat style.css).
-       Mobile (<992px): .hero__inner kembali menjadi stack vertikal (visual dulu, lalu teks) — tidak berubah dari sebelumnya. -->
   <section class="hero" aria-label="Perkenalan Kopi Nusantara">
-    <div class="hero__inner">
 
-      <!-- Text content -->
-      <div class="hero__content">
-        <p class="eyebrow reveal" data-reveal>Kopi Pilihan Nusantara</p>
-        <h1 class="hero__headline">
-          <span class="line" data-hero-line>Rasa Nusantara,</span>
-          <span class="line" data-hero-line>Dalam Setiap Seduhan.</span>
-        </h1>
-        <p class="hero__desc reveal" data-reveal>
-          Biji kopi pilihan dari berbagai daerah Indonesia — dipilih dengan cermat, disangrai dengan perhatian, dan dikirim untuk menemani setiap momen.
-        </p>
-        <p class="hero__url reveal" data-reveal>www.kopinusantara.id</p>
-        <div class="hero__cta reveal d-flex flex-wrap gap-3" data-reveal>
-          <a href="#produk" class="btn btn--primary">Jelajahi Kopi</a>
-          <a href="#tentang" class="btn btn--ghost">Kenali Kopi Nusantara</a>
-        </div>
+    <!-- Hero banner: image only, 16:9, terpisah dari teks -->
+    <div class="hero__frame reveal" data-reveal>
+      <div class="hero__media" id="heroMedia" data-hero-slideshow>
+        <img src="assets/images/about.jpg" alt="Suasana Kopi Nusantara" class="hero__img is-active" data-hero-slide loading="eager">
+        <img src="assets/images/hero-02.jpg" alt="Suasana Kopi Nusantara" class="hero__img" data-hero-slide loading="lazy">
+        <img src="assets/images/hero-03.jpg" alt="Suasana Kopi Nusantara" class="hero__img" data-hero-slide loading="lazy">
+        <img src="assets/images/hero-04.jpg" alt="Suasana Kopi Nusantara" class="hero__img" data-hero-slide loading="lazy">
+        <div class="hero__overlay"></div>
       </div>
 
-      <!-- Visual column: banner gambar + indikator slide -->
-      <div class="hero__visual">
-        <div class="hero__frame reveal" data-reveal>
-          <div class="hero__media" id="heroMedia" data-hero-slideshow>
-            <img src="assets/images/about.jpg" alt="Suasana Kopi Nusantara" class="hero__img is-active" data-hero-slide loading="eager">
-            <img src="assets/images/hero-02.jpg" alt="Suasana Kopi Nusantara" class="hero__img" data-hero-slide loading="lazy">
-            <img src="assets/images/hero-03.jpg" alt="Suasana Kopi Nusantara" class="hero__img" data-hero-slide loading="lazy">
-            <img src="assets/images/hero-04.jpg" alt="Suasana Kopi Nusantara" class="hero__img" data-hero-slide loading="lazy">
-            <div class="hero__overlay"></div>
-          </div>
+      <svg class="hero__badge" viewBox="0 0 120 120" aria-hidden="true">
+        <defs><path id="heroStampPath" d="M 60,60 m -50,0 a 50,50 0 1,1 100,0 a 50,50 0 1,1 -100,0"/></defs>
+        <circle cx="60" cy="60" r="50" class="hero__badge-ring"/>
+        <text><textPath href="#heroStampPath" startOffset="0%">KOPI NUSANTARA • SEJAK 2024 • KOPI NUSANTARA • </textPath></text>
+        <circle cx="60" cy="60" r="20" class="hero__badge-dot"/>
+      </svg>
 
-          <svg class="hero__badge" viewBox="0 0 120 120" aria-hidden="true">
-            <defs><path id="heroStampPath" d="M 60,60 m -50,0 a 50,50 0 1,1 100,0 a 50,50 0 1,1 -100,0"/></defs>
-            <circle cx="60" cy="60" r="50" class="hero__badge-ring"/>
-            <text><textPath href="#heroStampPath" startOffset="0%">KOPI NUSANTARA • SEJAK 2024 • KOPI NUSANTARA • </textPath></text>
-            <circle cx="60" cy="60" r="20" class="hero__badge-dot"/>
-          </svg>
-        </div>
+    </div>
 
-        <div class="hero__dots d-flex justify-content-center align-items-center gap-2" id="heroDots" data-hero-dots role="tablist" aria-label="Pilih slide hero"></div>
+    <!-- Slide indicator: di bawah gambar, di atas teks -->
+    <div class="hero__dots d-flex justify-content-center align-items-center gap-2" id="heroDots" data-hero-dots role="tablist" aria-label="Pilih slide hero"></div>
+
+    <!-- Text content: terpisah penuh dari gambar -->
+    <div class="hero__content">
+      <p class="eyebrow reveal" data-reveal>Kopi Pilihan Nusantara</p>
+      <h1 class="hero__headline">
+        <span class="line" data-hero-line>Rasa Nusantara,</span>
+        <span class="line" data-hero-line>Dalam Setiap Seduhan.</span>
+      </h1>
+      <p class="hero__desc reveal" data-reveal>
+        Biji kopi pilihan dari berbagai daerah Indonesia — dipilih dengan cermat, disangrai dengan perhatian, dan dikirim untuk menemani setiap momen.
+      </p>
+      <p class="hero__url reveal" data-reveal>www.kopinusantara.id</p>
+      <div class="hero__cta reveal d-flex flex-wrap gap-3" data-reveal>
+        <a href="#produk" class="btn btn--primary">Jelajahi Kopi</a>
+        <a href="#tentang" class="btn btn--ghost">Kenali Kopi Nusantara</a>
       </div>
-
     </div>
   </section>
 
