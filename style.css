@@ -439,12 +439,8 @@ svg{ display: block; }
 
 /* =========================================================
    HERO
-   Mobile (<992px): stack vertikal — visual dulu (order:-1), lalu teks.
-   Sama persis dengan struktur lama, hanya dibungkus .hero__inner/.hero__visual.
-   Desktop (>=992px): .hero__inner jadi grid 2 kolom horizontal
-   [ TEXT ] [ VISUAL ] — lihat media query di bawah.
-   Aspect-ratio gambar TETAP 16/9 (native asset) di semua ukuran supaya
-   tidak ada crop pada komposisi yang sudah baku di dalam gambar.
+   Struktur baru: NAVBAR -> HERO IMAGE 16:9 -> INDICATOR -> TEXT -> CTA
+   Gambar dan teks sengaja dipisah total agar tidak ada overlap.
 ========================================================= */
 .hero{
   position: relative;
@@ -452,11 +448,6 @@ svg{ display: block; }
   background: var(--c-cream);
   overflow: hidden;
 }
-.hero__inner{
-  display: flex;
-  flex-direction: column;
-}
-.hero__visual{ order: -1; }
 
 /* --- Frame gambar / slideshow, wajib 16:9 di semua breakpoint --- */
 .hero__frame{
@@ -496,30 +487,19 @@ svg{ display: block; }
   pointer-events: none;
 }
 
-/* --- Desktop: horizontal composition [ TEXT ] [ VISUAL ], never a giant
-       full-viewport image. Visual column keeps the image's native 16/9
-       ratio (no crop) and simply scales with its column width. --- */
+/* --- Desktop: controlled, contained hero (never a giant full-viewport image) --- */
 @media (min-width: 992px){
   .hero{ padding-top: 108px; }
-  .hero__inner{
-    display: grid;
-    grid-template-columns: minmax(360px, 42%) 1fr;
-    align-items: center;
-    gap: clamp(40px, 5vw, 76px);
+  .hero__frame{
+    aspect-ratio: auto;
+    height: clamp(420px, 44vw, 580px);
     max-width: var(--container);
     margin: 0 auto;
-    padding: 0 var(--gutter);
+    border-radius: var(--radius-l);
   }
-  .hero__visual{ order: 0; display: flex; flex-direction: column; }
-  .hero__frame{ border-radius: var(--radius-l); }
-  .hero__dots{ justify-content: flex-start; padding-left: 4px; }
-  .hero__content{
-    max-width: none;
-    margin: 0;
-    width: auto;
-    padding: 0;
-  }
-  .hero__desc{ max-width: 420px; }
+}
+@media (min-width: 1440px){
+  .hero__frame{ height: clamp(460px, 36vw, 600px); }
 }
 
 .hero__badge{
@@ -876,19 +856,12 @@ svg{ display: block; }
 .filter-chip:active{ transform: scale(.93); }
 .filter-chip.is-active{ background: var(--c-espresso); color: var(--c-offwhite); border-color: var(--c-espresso); }
 .products__carousel-wrap{ max-width: var(--container); margin: 0 auto; padding: 0 var(--gutter); }
-/* Product grid — 2 columns on mobile/tablet (unchanged), scaling up to 3
-   then 4 columns as desktop width allows more room per card. Still a
-   plain grid: no overflow-x, no scroll-snap, no drag/prev-next behavior. */
+/* Product grid — always 2 columns (desktop, tablet, mobile). Not a carousel:
+   no overflow-x, no scroll-snap, no drag/prev-next behavior attached in JS. */
 .products__carousel{
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: clamp(10px, 2.6vw, 22px);
-}
-@media (min-width: 780px){
-  .products__carousel{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-@media (min-width: 1200px){
-  .products__carousel{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 .product-card{
@@ -999,34 +972,18 @@ svg{ display: block; }
 .why__grid{
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 28px;
+  gap: 44px 32px;
   padding: 0 var(--gutter);
-  perspective: 1400px;
 }
-/* Card treatment: subtle border + realistic layered shadow + hover elevation,
-   giving the item real depth instead of a bare icon/heading/paragraph stack. */
 .why__item{
-  position: relative;
   text-align: center;
-  padding: 40px 26px 34px;
-  background: var(--c-offwhite);
-  border: 1px solid var(--c-line);
-  border-radius: var(--radius-m);
-  box-shadow: 0 1px 2px rgba(36,22,17,.04), 0 18px 40px rgba(36,22,17,.06);
-  transition: transform var(--dur-m) var(--ease-spring), box-shadow var(--dur-m) var(--ease), border-color var(--dur-m) var(--ease);
+  padding: 8px 12px;
+  transition: transform var(--dur-m) var(--ease-spring);
 }
-/* Slight alternating offset so the row doesn't read as identical repeated
-   cards — a small, controlled variation rather than a rigid template grid. */
-.why__grid .why__item:nth-child(even){ transform: translateY(14px); }
-.why__item:hover{
-  transform: translateY(-10px) rotateX(2deg);
-  border-color: var(--c-gold-soft);
-  box-shadow: 0 1px 2px rgba(36,22,17,.05), 0 32px 60px rgba(36,22,17,.14);
-}
-.why__grid .why__item:nth-child(even):hover{ transform: translateY(4px) rotateX(2deg); }
+.why__item:hover{ transform: translateY(-8px); }
 .why__icon{
   display: grid; place-items: center;
-  width: 60px; height: 60px;
+  width: 68px; height: 68px;
   margin: 0 auto 22px;
   border-radius: 50%;
   background: var(--c-cream);
@@ -1034,15 +991,10 @@ svg{ display: block; }
   color: var(--c-coffee);
   transition: background var(--dur-s) var(--ease), color var(--dur-s) var(--ease), transform var(--dur-s) var(--ease-spring);
 }
-.why__icon svg{ width: 26px; height: 26px; }
+.why__icon svg{ width: 28px; height: 28px; }
 .why__item:hover .why__icon{ background: var(--c-espresso); color: var(--c-offwhite); transform: scale(1.08) rotate(-6deg); }
-.why__item h3{ font-size: 17px; margin-bottom: 10px; }
-.why__item p{ font-size: 13.5px; color: var(--c-coffee-2); line-height: 1.65; max-width: 280px; margin: 0 auto; }
-@media (prefers-reduced-motion: reduce){
-  .why__grid .why__item:nth-child(even){ transform: none; }
-  .why__item:hover,
-  .why__grid .why__item:nth-child(even):hover{ transform: none; }
-}
+.why__item h3{ font-size: 18px; margin-bottom: 10px; }
+.why__item p{ font-size: 14px; color: var(--c-coffee-2); line-height: 1.65; max-width: 320px; margin: 0 auto; }
 
 /* =========================================================
    KIOS / OUTLET
@@ -1477,8 +1429,6 @@ svg{ display: block; }
   .about, .profile, .vision{ margin-bottom: 28px; }
 
   .why__grid{ grid-template-columns: 1fr; }
-  .why__grid .why__item:nth-child(even){ transform: none; }
-  .why__grid .why__item:nth-child(even):hover{ transform: translateY(-10px); }
 
   .kios{ padding: 64px 0; }
   .kios-slide{ flex-basis: 84vw; }
