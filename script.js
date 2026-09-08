@@ -482,6 +482,7 @@
        "Foto segera hadir" sampai file gambarnya ada di assets/images/. */
     { id: 'takengon-robusta', name: 'Takengon Robusta', origin: 'Aceh', type: 'Dark Roast', price: 30000, image: 'assets/images/product-takengon.jpg', rating: 4.7, reviews: 18, badge: 'Baru', weights: [100, 250, 500, 1000] },
     { id: 'kalosi-enrekang', name: 'Kalosi Enrekang', origin: 'Sulawesi', type: 'Medium Roast', price: 43500, image: 'assets/images/product-kalosi.jpg', rating: 4.8, reviews: 15, badge: null, weights: [100, 250, 500, 1000] },
+    { id: 'mamasa-arabika', name: 'Mamasa Arabika', origin: 'Sulawesi', type: 'Light Roast', price: 42000, image: 'assets/images/product-mamasa.jpg', rating: 4.7, reviews: 11, badge: null, weights: [100, 250, 500, 1000] },
     { id: 'pupuan-robusta', name: 'Pupuan Robusta', origin: 'Bali', type: 'Medium Roast', price: 32000, image: 'assets/images/product-pupuan.jpg', rating: 4.6, reviews: 12, badge: null, weights: [100, 250, 500, 1000] },
     { id: 'manggarai-arabika', name: 'Manggarai Arabika', origin: 'Nusa Tenggara', type: 'Light Roast', price: 41500, image: 'assets/images/product-manggarai.jpg', rating: 4.8, reviews: 9, badge: 'Baru', weights: [100, 250, 500, 1000] },
     { id: 'malabar-honey', name: 'Malabar Honey Process', origin: 'Jawa Barat', type: 'Medium Roast', price: 45000, image: 'assets/images/product-malabar.jpg', rating: 4.9, reviews: 14, badge: 'Premium', weights: [100, 250, 500, 1000] }
