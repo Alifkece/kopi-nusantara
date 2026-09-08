@@ -475,7 +475,16 @@
     { id: 'java-preanger', name: 'Java Preanger', origin: 'Jawa Barat', type: 'Dark Roast', price: 38000, image: 'assets/images/product-java.jpg', rating: 4.6, reviews: 53, badge: null, weights: [100, 250, 500, 1000] },
     { id: 'biji-arabika', name: 'Biji Kopi Arabika', origin: 'Aceh', type: 'Light Roast', price: 37000, image: 'assets/images/product-arabika.jpg', rating: 4.7, reviews: 40, badge: null, weights: [100, 250, 500, 1000] },
     { id: 'biji-robusta', name: 'Biji Kopi Robusta', origin: 'Jawa Barat', type: 'Dark Roast', price: 28000, image: 'assets/images/product-robusta.jpg', rating: 4.6, reviews: 35, badge: null, weights: [100, 250, 500, 1000] },
-    { id: 'kopi-luwak', name: 'Biji Luwak White Coffe', origin: 'Bali', type: 'Medium Roast', price: 150000, image: 'assets/images/product-luwak.jpg', rating: 4.9, reviews: 22, badge: 'Premium', weights: [100, 250, 500, 1000] }
+    { id: 'kopi-luwak', name: 'Biji Luwak White Coffe', origin: 'Bali', type: 'Medium Roast', price: 150000, image: 'assets/images/product-luwak.jpg', rating: 4.9, reviews: 22, badge: 'Premium', weights: [100, 250, 500, 1000] },
+    /* --- Produk tambahan (ditambahkan saat revisi UI/UX) ---
+       Gambar belum tersedia, gunakan nama file di bawah ini saat
+       menambahkan foto asli — kartu otomatis menampilkan placeholder
+       "Foto segera hadir" sampai file gambarnya ada di assets/images/. */
+    { id: 'takengon-robusta', name: 'Takengon Robusta', origin: 'Aceh', type: 'Dark Roast', price: 30000, image: 'assets/images/product-takengon.jpg', rating: 4.7, reviews: 18, badge: 'Baru', weights: [100, 250, 500, 1000] },
+    { id: 'kalosi-enrekang', name: 'Kalosi Enrekang', origin: 'Sulawesi', type: 'Medium Roast', price: 43500, image: 'assets/images/product-kalosi.jpg', rating: 4.8, reviews: 15, badge: null, weights: [100, 250, 500, 1000] },
+    { id: 'pupuan-robusta', name: 'Pupuan Robusta', origin: 'Bali', type: 'Medium Roast', price: 32000, image: 'assets/images/product-pupuan.jpg', rating: 4.6, reviews: 12, badge: null, weights: [100, 250, 500, 1000] },
+    { id: 'manggarai-arabika', name: 'Manggarai Arabika', origin: 'Nusa Tenggara', type: 'Light Roast', price: 41500, image: 'assets/images/product-manggarai.jpg', rating: 4.8, reviews: 9, badge: 'Baru', weights: [100, 250, 500, 1000] },
+    { id: 'malabar-honey', name: 'Malabar Honey Process', origin: 'Jawa Barat', type: 'Medium Roast', price: 45000, image: 'assets/images/product-malabar.jpg', rating: 4.9, reviews: 14, badge: 'Premium', weights: [100, 250, 500, 1000] }
   ];
 
   var activeFilter = 'all';
