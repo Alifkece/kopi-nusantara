@@ -33,7 +33,7 @@
   --f-body: 'DM Sans', sans-serif;
 
   /* Layout */
-  --container: 1240px;
+  --container: clamp(1240px, 92vw, 1560px);
   --gutter: clamp(20px, 5vw, 64px);
   --radius-s: 4px;
   --radius-m: 15px;
@@ -84,6 +84,52 @@ svg{ display: block; }
   outline: 2px solid var(--c-gold);
   outline-offset: 3px;
   border-radius: 2px;
+}
+
+/* =========================================================
+   LOADING SCREEN
+   Full-screen overlay shown before the site is ready. Purely
+   presentational — script.js is responsible for animating the
+   bar and removing the .is-done class; if JS never runs, the
+   overlay simply stays a static brand screen instead of
+   blocking the page (see .is-loading below for the only
+   behavioural hook: scroll lock).
+========================================================= */
+.loader{
+  position: fixed; inset: 0; z-index: 1200;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--c-espresso);
+  transition: opacity .6s var(--ease), visibility .6s var(--ease);
+}
+.loader.is-done{ opacity: 0; visibility: hidden; pointer-events: none; }
+.loader__inner{
+  display: flex; flex-direction: column; align-items: center; gap: 22px;
+  padding: 0 24px;
+}
+.loader__logo{
+  height: 46px; width: auto; opacity: .95;
+  animation: loaderPulse 1.6s var(--ease) infinite;
+}
+@keyframes loaderPulse{
+  0%, 100%{ opacity: .7; transform: scale(1); }
+  50%{ opacity: 1; transform: scale(1.045); }
+}
+.loader__bar{
+  width: 220px; height: 3px; border-radius: 2px;
+  background: var(--c-line-light);
+  overflow: hidden;
+}
+.loader__bar-fill{
+  height: 100%; width: 0%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--c-gold), var(--c-gold-soft));
+  transition: width .25s var(--ease);
+}
+.loader__pct{
+  font-family: var(--f-body); font-size: 12px; letter-spacing: .14em;
+  color: var(--c-offwhite); opacity: .8;
+}
+@media (prefers-reduced-motion: reduce){
+  .loader__logo{ animation: none; }
 }
 
 .grain-overlay{
@@ -351,6 +397,13 @@ svg{ display: block; }
   .navbar__nav a:hover::after,
   .navbar__nav a.is-active::after{ right: 0; }
   .navbar__nav a.is-active{ opacity: 1; color: var(--c-gold-soft); }
+
+  /* Desktop navbar should read as a real navbar, not a scaled-up mobile bar */
+  .navbar__logo img{ height: 42px; }
+  .navbar__nav a{ font-size: 13.5px; }
+  .icon-btn{ width: 42px; height: 42px; }
+  .icon-btn svg{ width: 20px; height: 20px; }
+  .icon-btn__badge{ min-width: 16px; height: 16px; font-size: 9.5px; }
 }
 
 @media (min-width: 1200px){
@@ -500,6 +553,9 @@ svg{ display: block; }
 }
 @media (min-width: 1440px){
   .hero__frame{ height: clamp(460px, 36vw, 600px); }
+}
+@media (min-width: 992px){
+  .hero__desc{ font-size: 18px; max-width: 500px; }
 }
 
 .hero__badge{
@@ -838,7 +894,7 @@ svg{ display: block; }
 /* =========================================================
    PRODUCTS
 ========================================================= */
-.products{ background: var(--c-offwhite); padding: 100px 0 120px; }
+.products{ background: var(--c-offwhite); padding: 90px 0 100px; }
 .products__filter{
   display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
   max-width: var(--container); margin: 0 auto 40px; padding: 0 var(--gutter);
@@ -856,12 +912,19 @@ svg{ display: block; }
 .filter-chip:active{ transform: scale(.93); }
 .filter-chip.is-active{ background: var(--c-espresso); color: var(--c-offwhite); border-color: var(--c-espresso); }
 .products__carousel-wrap{ max-width: var(--container); margin: 0 auto; padding: 0 var(--gutter); }
-/* Product grid — always 2 columns (desktop, tablet, mobile). Not a carousel:
-   no overflow-x, no scroll-snap, no drag/prev-next behavior attached in JS. */
+/* Product grid — responsive column count (2 mobile / 3 tablet / 4 desktop).
+   Not a carousel: no overflow-x, no scroll-snap, no drag/prev-next behavior
+   attached in JS. */
 .products__carousel{
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: clamp(10px, 2.6vw, 22px);
+}
+@media (min-width: 820px){
+  .products__carousel{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 1200px){
+  .products__carousel{ grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
 }
 
 .product-card{
@@ -965,22 +1028,36 @@ svg{ display: block; }
   .product-card__add{ width: 30px; height: 30px; }
 }
 
+@media (min-width: 1200px){
+  .product-card__body{ padding: 14px 16px 16px; }
+  .product-card__weights{ margin-bottom: 12px; }
+}
+
 /* =========================================================
    WHY
 ========================================================= */
-.why{ padding: 110px 0; max-width: var(--container); margin: 0 auto; }
+.why{ padding: 90px 0; max-width: var(--container); margin: 0 auto; }
 .why__grid{
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 44px 32px;
-  padding: 0 var(--gutter);
+  gap: 0;
+  margin: 0 var(--gutter);
+  background: var(--c-offwhite);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-l);
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(36,22,17,.07);
 }
 .why__item{
   text-align: center;
-  padding: 8px 12px;
-  transition: transform var(--dur-m) var(--ease-spring);
+  padding: 44px 28px;
+  border-right: 1px solid var(--c-line);
+  border-bottom: 1px solid var(--c-line);
+  transition: background var(--dur-m) var(--ease), transform var(--dur-m) var(--ease-spring);
 }
-.why__item:hover{ transform: translateY(-8px); }
+.why__grid .why__item:nth-child(3n){ border-right: none; }
+.why__grid .why__item:nth-child(n+4){ border-bottom: none; }
+.why__item:hover{ background: var(--c-cream); transform: translateY(-2px); }
 .why__icon{
   display: grid; place-items: center;
   width: 68px; height: 68px;
@@ -1002,7 +1079,7 @@ svg{ display: block; }
 .kios{
   max-width: var(--container);
   margin: 0 auto;
-  padding: 120px 0;
+  padding: 96px 0;
 }
 .kios__carousel-wrap{ position: relative; max-width: var(--container); margin: 0 auto; padding: 0 var(--gutter); }
 .kios__carousel{
@@ -1083,7 +1160,7 @@ svg{ display: block; }
    Setiap artikel adalah baris besar: nomor + gambar + judul
    editorial, disusun vertikal dengan garis pemisah tipis.
 ========================================================= */
-.journal{ padding: 120px 0; max-width: var(--container); margin: 0 auto; }
+.journal{ padding: 100px 0; max-width: var(--container); margin: 0 auto; }
 .journal__list{ padding: 0 var(--gutter); }
 
 .journal__row{
@@ -1151,7 +1228,7 @@ svg{ display: block; }
 /* =========================================================
    TESTIMONIAL
 ========================================================= */
-.testimonial{ background: var(--c-espresso); padding: 110px 0; color: var(--c-offwhite); }
+.testimonial{ background: var(--c-espresso); padding: 96px 0; color: var(--c-offwhite); }
 .testimonial .eyebrow{ color: var(--c-gold-soft); }
 .testimonial .eyebrow::before{ background: var(--c-gold-soft); }
 .testimonial .section-head h2{ color: var(--c-offwhite); }
@@ -1193,7 +1270,7 @@ svg{ display: block; }
 ========================================================= */
 .final-cta{
   background: linear-gradient(160deg, var(--c-coffee), var(--c-espresso));
-  padding: 130px var(--gutter);
+  padding: 110px var(--gutter);
   text-align: center;
 }
 .final-cta h2{
@@ -1405,6 +1482,11 @@ svg{ display: block; }
   .about__media{ aspect-ratio: 16/9; }
   .profile{ grid-template-columns: 1fr; padding: 40px var(--gutter); }
   .why__grid{ grid-template-columns: repeat(2, 1fr); }
+  /* 2-column panel: divider positions differ from the 3-column desktop grid */
+  .why__grid .why__item:nth-child(3n){ border-right: 1px solid var(--c-line); }
+  .why__grid .why__item:nth-child(2n){ border-right: none; }
+  .why__grid .why__item:nth-child(n+4){ border-bottom: 1px solid var(--c-line); }
+  .why__grid .why__item:nth-child(n+5){ border-bottom: none; }
   .vision{ grid-template-columns: 1fr; padding: 44px var(--gutter); }
   .blog__grid{ grid-template-columns: repeat(2, 1fr); }
   .footer__top{ grid-template-columns: 1fr 1fr; row-gap: 40px; }
@@ -1428,7 +1510,9 @@ svg{ display: block; }
 
   .about, .profile, .vision{ margin-bottom: 28px; }
 
-  .why__grid{ grid-template-columns: 1fr; }
+  .why__grid{ grid-template-columns: 1fr; margin: 0 var(--gutter); }
+  .why__item{ border-right: none; border-bottom: 1px solid var(--c-line); padding: 32px 20px; }
+  .why__item:last-child{ border-bottom: none; }
 
   .kios{ padding: 64px 0; }
   .kios-slide{ flex-basis: 84vw; }
