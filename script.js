@@ -8,6 +8,51 @@
   var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   /* =======================================================
+     0. LOADING SCREEN
+     - Simulated progress so the bar always moves smoothly,
+       independent of real network timing.
+     - Hides on window 'load'.
+     - Hard failsafe timeout: if load never fires (blocked
+       asset, slow CDN, etc.) the loader is forced away after
+       4s so the site is never stuck behind it.
+  ======================================================= */
+  (function initLoader() {
+    var loader = document.getElementById('loader');
+    if (!loader) return;
+    var fill = document.getElementById('loaderBarFill');
+    var pct = document.getElementById('loaderPct');
+    document.body.style.overflow = 'hidden';
+
+    var progress = 0;
+    var hidden = false;
+    var fakeTimer = null;
+
+    function setProgress(p) {
+      progress = Math.min(p, 100);
+      if (fill) fill.style.width = progress + '%';
+      if (pct) pct.textContent = Math.round(progress) + '%';
+    }
+
+    function hideLoader() {
+      if (hidden) return;
+      hidden = true;
+      if (fakeTimer) window.clearInterval(fakeTimer);
+      setProgress(100);
+      window.setTimeout(function () {
+        loader.classList.add('is-done');
+        document.body.style.overflow = '';
+      }, 200);
+    }
+
+    fakeTimer = window.setInterval(function () {
+      setProgress(progress + (100 - progress) * 0.12);
+    }, 120);
+
+    window.addEventListener('load', hideLoader);
+    window.setTimeout(hideLoader, 4000); // failsafe: never stuck
+  })();
+
+  /* =======================================================
      1. NAVBAR — solid on scroll
   ======================================================= */
   var navbar = document.getElementById('navbar');
