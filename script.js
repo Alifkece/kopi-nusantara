@@ -89,7 +89,7 @@
     var slides = Array.prototype.slice.call(media.querySelectorAll('[data-hero-slide]'));
     if (slides.length < 2) return;
 
-    var SLIDE_INTERVAL = 7000; // 6-8s per slide
+    var SLIDE_INTERVAL = 4000; // fast, modern pacing per slide — no zoom, clean crossfade only
     var current = slides.findIndex(function (img) { return img.classList.contains('is-active'); });
     if (current < 0) current = 0;
     var timer = null;
@@ -468,27 +468,31 @@
      dari basis ini (lihat priceForWeight()).
   ======================================================= */
   var PRODUCTS = [
-    { id: 'gayo-arabika', name: 'Gayo Arabika', origin: 'Aceh', type: 'Light Roast', price: 39000, image: 'assets/images/product-gayo.jpg', rating: 4.9, reviews: 128, badge: 'Terlaris', weights: [100, 250, 500, 1000] },
-    { id: 'toraja-sapan', name: 'Toraja Sapan', origin: 'Sulawesi', type: 'Medium Roast', price: 42500, image: 'assets/images/product-toraja.jpg', rating: 4.8, reviews: 96, badge: 'Baru', weights: [100, 250, 500, 1000] },
-    { id: 'kintamani-citrus', name: 'Kintamani Citrus', origin: 'Bali', type: 'Light Roast', price: 41000, image: 'assets/images/product-kintamani.jpg', rating: 4.7, reviews: 74, badge: null, weights: [100, 250, 500, 1000] },
-    { id: 'flores-bajawa', name: 'Flores Bajawa', origin: 'Nusa Tenggara', type: 'Medium Roast', price: 40000, image: 'assets/images/product-flores.jpg', rating: 4.8, reviews: 61, badge: null, weights: [100, 250, 500, 1000] },
-    { id: 'java-preanger', name: 'Java Preanger', origin: 'Jawa Barat', type: 'Dark Roast', price: 38000, image: 'assets/images/product-java.jpg', rating: 4.6, reviews: 53, badge: null, weights: [100, 250, 500, 1000] },
-    { id: 'biji-arabika', name: 'Biji Kopi Arabika', origin: 'Aceh', type: 'Light Roast', price: 37000, image: 'assets/images/product-arabika.jpg', rating: 4.7, reviews: 40, badge: null, weights: [100, 250, 500, 1000] },
-    { id: 'biji-robusta', name: 'Biji Kopi Robusta', origin: 'Jawa Barat', type: 'Dark Roast', price: 28000, image: 'assets/images/product-robusta.jpg', rating: 4.6, reviews: 35, badge: null, weights: [100, 250, 500, 1000] },
-    { id: 'kopi-luwak', name: 'Biji Luwak White Coffe', origin: 'Bali', type: 'Medium Roast', price: 150000, image: 'assets/images/product-luwak.jpg', rating: 4.9, reviews: 22, badge: 'Premium', weights: [100, 250, 500, 1000] },
+    { id: 'gayo-arabika', name: 'Gayo Arabika', origin: 'Aceh', type: 'Light Roast', price: 39000, image: 'assets/images/product-gayo.jpg', rating: 4.9, reviews: 128, badge: 'Terlaris', weights: [100, 250, 500, 1000], description: 'Arabika dataran tinggi Gayo dengan keasaman lembut, aroma rempah, dan aftertaste bersih khas tanah vulkanik Aceh.' },
+    { id: 'toraja-sapan', name: 'Toraja Sapan', origin: 'Sulawesi', type: 'Medium Roast', price: 42500, image: 'assets/images/product-toraja.jpg', rating: 4.8, reviews: 96, badge: 'Baru', weights: [100, 250, 500, 1000], description: 'Arabika Toraja dengan karakter earthy, body seimbang, aroma rempah, dan acidity yang lembut.' },
+    { id: 'kintamani-citrus', name: 'Kintamani Citrus', origin: 'Bali', type: 'Light Roast', price: 41000, image: 'assets/images/product-kintamani.jpg', rating: 4.7, reviews: 74, badge: null, weights: [100, 250, 500, 1000], description: 'Ditanam berdampingan dengan jeruk, memberi keasaman citrus yang cerah dan seduhan yang ringan.' },
+    { id: 'flores-bajawa', name: 'Flores Bajawa', origin: 'Nusa Tenggara', type: 'Medium Roast', price: 40000, image: 'assets/images/product-flores.jpg', rating: 4.8, reviews: 61, badge: null, weights: [100, 250, 500, 1000], description: 'Kopi dataran tinggi Bajawa dengan body medium, rasa manis karamel, dan sentuhan floral yang khas.' },
+    { id: 'java-preanger', name: 'Java Preanger', origin: 'Jawa Barat', type: 'Dark Roast', price: 38000, image: 'assets/images/product-java.jpg', rating: 4.6, reviews: 53, badge: null, weights: [100, 250, 500, 1000], description: 'Dark roast klasik Priangan Jawa Barat, body tebal, pahit seimbang, aroma cokelat panggang yang kuat.' },
+    { id: 'biji-arabika', name: 'Biji Kopi Arabika', origin: 'Aceh', type: 'Light Roast', price: 37000, image: 'assets/images/product-arabika.jpg', rating: 4.7, reviews: 40, badge: null, weights: [100, 250, 500, 1000], description: 'Biji Arabika pilihan dengan profil rasa ringan, asam buah-buahan, dan finish yang bersih.' },
+    { id: 'biji-robusta', name: 'Biji Kopi Robusta', origin: 'Jawa Barat', type: 'Dark Roast', price: 28000, image: 'assets/images/product-robusta.jpg', rating: 4.6, reviews: 35, badge: null, weights: [100, 250, 500, 1000], description: 'Robusta body kuat dan pahit khas, cocok untuk kopi tubruk maupun campuran espresso sehari-hari.' },
+    { id: 'kopi-luwak', name: 'Biji Luwak White Coffe', origin: 'Bali', type: 'Medium Roast', price: 150000, image: 'assets/images/product-luwak.jpg', rating: 4.9, reviews: 22, badge: 'Premium', weights: [100, 250, 500, 1000], description: 'Kopi luwak premium dari Bali, proses fermentasi alami menghasilkan rasa halus dan keasaman rendah.' },
     /* --- Produk tambahan (ditambahkan saat revisi UI/UX) ---
        Gambar belum tersedia, gunakan nama file di bawah ini saat
        menambahkan foto asli — kartu otomatis menampilkan placeholder
        "Foto segera hadir" sampai file gambarnya ada di assets/images/. */
-    { id: 'takengon-robusta', name: 'Takengon Robusta', origin: 'Aceh', type: 'Dark Roast', price: 30000, image: 'assets/images/product-takengon.jpg', rating: 4.7, reviews: 18, badge: 'Baru', weights: [100, 250, 500, 1000] },
-    { id: 'kalosi-enrekang', name: 'Kalosi Enrekang', origin: 'Sulawesi', type: 'Medium Roast', price: 43500, image: 'assets/images/product-kalosi.jpg', rating: 4.8, reviews: 15, badge: null, weights: [100, 250, 500, 1000] },
-    { id: 'mamasa-arabika', name: 'Mamasa Arabika', origin: 'Sulawesi', type: 'Light Roast', price: 42000, image: 'assets/images/product-mamasa.jpg', rating: 4.7, reviews: 11, badge: null, weights: [100, 250, 500, 1000] },
-    { id: 'pupuan-robusta', name: 'Pupuan Robusta', origin: 'Bali', type: 'Medium Roast', price: 32000, image: 'assets/images/product-pupuan.jpg', rating: 4.6, reviews: 12, badge: null, weights: [100, 250, 500, 1000] },
-    { id: 'manggarai-arabika', name: 'Manggarai Arabika', origin: 'Nusa Tenggara', type: 'Light Roast', price: 41500, image: 'assets/images/product-manggarai.jpg', rating: 4.8, reviews: 9, badge: 'Baru', weights: [100, 250, 500, 1000] },
-    { id: 'malabar-honey', name: 'Malabar Honey Process', origin: 'Jawa Barat', type: 'Medium Roast', price: 45000, image: 'assets/images/product-malabar.jpg', rating: 4.9, reviews: 14, badge: 'Premium', weights: [100, 250, 500, 1000] }
+    { id: 'takengon-robusta', name: 'Takengon Robusta', origin: 'Aceh', type: 'Dark Roast', price: 30000, image: 'assets/images/product-takengon.jpg', rating: 4.7, reviews: 18, badge: 'Baru', weights: [100, 250, 500, 1000], description: 'Robusta dataran tinggi Takengon, body tebal, pahit tegas, cocok untuk kopi susu maupun tubruk kental.' },
+    { id: 'kalosi-enrekang', name: 'Kalosi Enrekang', origin: 'Sulawesi', type: 'Medium Roast', price: 43500, image: 'assets/images/product-kalosi.jpg', rating: 4.8, reviews: 15, badge: null, weights: [100, 250, 500, 1000], description: 'Arabika Kalosi dengan body medium, rasa rempah hangat, dan keasaman yang seimbang.' },
+    { id: 'mamasa-arabika', name: 'Mamasa Arabika', origin: 'Sulawesi', type: 'Light Roast', price: 42000, image: 'assets/images/product-mamasa.jpg', rating: 4.7, reviews: 11, badge: null, weights: [100, 250, 500, 1000], description: 'Arabika dataran tinggi Mamasa, ringan dengan aroma bunga dan keasaman yang cerah.' },
+    { id: 'pupuan-robusta', name: 'Pupuan Robusta', origin: 'Bali', type: 'Medium Roast', price: 32000, image: 'assets/images/product-pupuan.jpg', rating: 4.6, reviews: 12, badge: null, weights: [100, 250, 500, 1000], description: 'Robusta Pupuan dari perkebunan Bali, body sedang dengan rasa cokelat pahit yang lembut.' },
+    { id: 'manggarai-arabika', name: 'Manggarai Arabika', origin: 'Nusa Tenggara', type: 'Light Roast', price: 41500, image: 'assets/images/product-manggarai.jpg', rating: 4.8, reviews: 9, badge: 'Baru', weights: [100, 250, 500, 1000], description: 'Arabika Manggarai dengan karakter ringan, asam jeruk yang cerah, dan aftertaste manis.' },
+    { id: 'malabar-honey', name: 'Malabar Honey Process', origin: 'Jawa Barat', type: 'Medium Roast', price: 45000, image: 'assets/images/product-malabar.jpg', rating: 4.9, reviews: 14, badge: 'Premium', weights: [100, 250, 500, 1000], description: 'Proses honey dari Malabar, manis alami menyerupai madu dengan body medium dan acidity lembut.' },
+    /* --- Produk tambahan (revisi search + katalog) --- */
+    { id: 'sidikalang-arabika', name: 'Kopi Sidikalang', origin: 'Sumatera Utara', type: 'Medium Roast', price: 39500, image: 'assets/images/product-sidikalang.jpg', rating: 4.7, reviews: 8, badge: 'Baru', weights: [100, 250, 500, 1000], description: 'Kopi dataran tinggi Sidikalang, Sumatera Utara — body tebal, earthy, dengan keasaman rendah yang khas kopi Sumatera.' },
+    { id: 'bajawa-flores', name: 'Kopi Bajawa', origin: 'Nusa Tenggara', type: 'Light Roast', price: 40500, image: 'assets/images/product-bajawa.jpg', rating: 4.7, reviews: 7, badge: 'Baru', weights: [100, 250, 500, 1000], description: 'Kopi dari dataran tinggi Bajawa, Flores NTT — ringan, aroma floral, dengan rasa manis alami yang lembut.' }
   ];
 
   var activeFilter = 'all';
+  var searchQuery = ''; // diisi oleh search overlay, dicocokkan ke nama/asal/jenis produk
   var selectedWeight = {}; // { productId: weightInGram } — pilihan berat per kartu
 
   function starIcon() {
@@ -513,10 +517,15 @@
   function renderProducts() {
     var wrap = document.querySelector('[data-product-list]');
     if (!wrap) return;
-    var list = activeFilter === 'all' ? PRODUCTS : PRODUCTS.filter(function (p) { return p.origin === activeFilter; });
+    var list = PRODUCTS.filter(function (p) {
+      var matchesFilter = activeFilter === 'all' || p.origin === activeFilter;
+      var matchesSearch = !searchQuery || (p.name + ' ' + p.origin + ' ' + p.type).toLowerCase().indexOf(searchQuery) !== -1;
+      return matchesFilter && matchesSearch;
+    });
 
     if (!list.length) {
-      wrap.innerHTML = '<p style="padding:40px 4px;color:var(--c-coffee-2);">Belum ada produk untuk daerah ini.</p>';
+      var emptyMsg = searchQuery ? 'Produk tidak ditemukan.' : 'Belum ada produk untuk daerah ini.';
+      wrap.innerHTML = '<p style="padding:40px 4px;color:var(--c-coffee-2);">' + emptyMsg + '</p>';
       return;
     }
 
@@ -591,6 +600,7 @@
   var modalType = document.getElementById('modalType');
   var modalRating = document.getElementById('modalRating');
   var modalWeights = document.getElementById('modalWeights');
+  var modalDescription = document.getElementById('modalDescription');
   var modalPrice = document.getElementById('modalPrice');
   var modalAddCart = document.getElementById('modalAddCart');
   var modalActiveProductId = null;
@@ -609,8 +619,13 @@
     modalActiveProductId = id;
     modalActiveWeight = selectedWeight[id] || product.weights[0];
 
+    var modalMedia = productModal.querySelector('.product-modal__media');
     modalImage.style.display = '';
-    modalImage.onerror = function () { this.style.display = 'none'; };
+    if (modalMedia) modalMedia.classList.remove('product-modal__media--empty');
+    modalImage.onerror = function () {
+      this.style.display = 'none';
+      if (modalMedia) modalMedia.classList.add('product-modal__media--empty');
+    };
     modalImage.src = product.image;
     modalImage.alt = 'Biji kopi ' + product.name + ' dari ' + product.origin;
     modalOrigin.textContent = product.origin;
@@ -618,6 +633,7 @@
     modalType.textContent = product.type;
     modalRating.innerHTML = starIcon() + ' ' + product.rating.toFixed(1) + ' &middot; ' + product.reviews + ' ulasan';
     renderModalWeights(product);
+    if (modalDescription) modalDescription.textContent = product.description || '';
 
     productModal.classList.add('is-open');
     productModal.setAttribute('aria-hidden', 'false');
@@ -880,23 +896,85 @@
   });
 
   /* =======================================================
-     13b. ESCAPE KEY — close modal / cart drawer / mobile menu
+     13. SEARCH — filters PRODUCTS by name/origin/type
+     - Opens an overlay bar under the navbar (no page reload,
+       no navigation to another page).
+     - Filters the real product grid live as the user types,
+       combined with the active origin filter chip.
+     - Case-insensitive; empty input restores the full list.
+     - Shows "Produk tidak ditemukan." when there is no match.
+  ======================================================= */
+  var searchOverlay = document.getElementById('searchOverlay');
+  var searchInput = document.getElementById('searchInput');
+  var searchTriggerBtn = document.querySelector('[data-action="search"]');
+  var hasScrolledToProducts = false;
+
+  function openSearch() {
+    if (!searchOverlay) return;
+    searchOverlay.classList.add('is-open');
+    searchOverlay.setAttribute('aria-hidden', 'false');
+    window.setTimeout(function () { if (searchInput) searchInput.focus(); }, 200);
+  }
+
+  function closeSearch() {
+    if (!searchOverlay) return;
+    searchOverlay.classList.remove('is-open');
+    searchOverlay.setAttribute('aria-hidden', 'true');
+    if (searchInput) searchInput.value = '';
+    searchQuery = '';
+    hasScrolledToProducts = false;
+    renderProducts();
+  }
+
+  if (searchTriggerBtn) {
+    searchTriggerBtn.addEventListener('click', function () {
+      var isOpen = searchOverlay && searchOverlay.classList.contains('is-open');
+      isOpen ? closeSearch() : openSearch();
+    });
+  }
+  document.querySelectorAll('[data-search-close]').forEach(function (el) {
+    el.addEventListener('click', closeSearch);
+  });
+  if (searchInput) {
+    searchInput.addEventListener('input', function () {
+      searchQuery = searchInput.value.trim().toLowerCase();
+      renderProducts();
+
+      if (searchQuery && !hasScrolledToProducts) {
+        hasScrolledToProducts = true;
+        var produkSection = document.getElementById('produk');
+        if (produkSection) {
+          window.setTimeout(function () {
+            var top = produkSection.getBoundingClientRect().top + window.scrollY - 84;
+            window.scrollTo({ top: top, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
+          }, 150);
+        }
+      } else if (!searchQuery) {
+        hasScrolledToProducts = false;
+      }
+    });
+  }
+
+  /* =======================================================
+     13b. ACCOUNT ICON PLACEHOLDER
+     (No account system yet — this stage is landing-page only)
+  ======================================================= */
+  var accountBtn = document.querySelector('[data-action="account"]');
+  if (accountBtn) {
+    accountBtn.addEventListener('click', function () {
+      accountBtn.setAttribute('title', 'Fitur ini akan tersedia pada tahap berikutnya');
+    });
+  }
+
+  /* =======================================================
+     13c. ESCAPE KEY — close modal / cart drawer / search / mobile menu
   ======================================================= */
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
     closeProductModal();
     closeCartDrawer();
+    closeSearch();
     closeMobileMenu();
-  });
-
-  /* =======================================================
-     13. SEARCH / ACCOUNT ICON PLACEHOLDERS
-     (No search/account system yet — this stage is landing-page only)
-  ======================================================= */
-  document.querySelectorAll('[data-action="search"], [data-action="account"]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      btn.setAttribute('title', 'Fitur ini akan tersedia pada tahap berikutnya');
-    });
   });
 
 })();
