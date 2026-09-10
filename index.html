@@ -84,6 +84,19 @@
   </div>
 </header>
 
+<!-- ============ SEARCH OVERLAY ============ -->
+<div class="search-overlay" id="searchOverlay" aria-hidden="true">
+  <div class="search-overlay__backdrop" data-search-close></div>
+  <div class="search-overlay__panel" role="search" aria-label="Pencarian produk kopi">
+    <div class="search-overlay__bar">
+      <svg class="search-overlay__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.2" y2="16.2"/></svg>
+      <input type="text" id="searchInput" class="search-overlay__input" placeholder="Cari nama kopi, daerah asal, atau jenis roast..." autocomplete="off" aria-label="Cari produk kopi">
+      <button class="search-overlay__close" type="button" data-search-close aria-label="Tutup pencarian">&times;</button>
+    </div>
+    <p class="search-overlay__hint">Hasil pencarian tampil otomatis pada bagian Produk Unggulan.</p>
+  </div>
+</div>
+
 <!-- ============ FLOATING CONTACT BUTTON ============ -->
 <a href="#kontak" class="float-contact" aria-label="Hubungi Kopi Nusantara" data-nav>
   <span class="float-contact__ring"></span>
