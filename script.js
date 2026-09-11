@@ -21,7 +21,9 @@
     if (!loader) return;
     var fill = document.getElementById('loaderBarFill');
     var pct = document.getElementById('loaderPct');
+    var navbarEl = document.getElementById('navbar');
     document.body.style.overflow = 'hidden';
+    if (navbarEl && !prefersReducedMotion) navbarEl.classList.add('is-entering');
 
     var progress = 0;
     var hidden = false;
@@ -41,6 +43,10 @@
       window.setTimeout(function () {
         loader.classList.add('is-done');
         document.body.style.overflow = '';
+        if (navbarEl) {
+          navbarEl.classList.remove('is-entering');
+          navbarEl.classList.add('is-entered');
+        }
       }, 200);
     }
 
@@ -89,7 +95,7 @@
     var slides = Array.prototype.slice.call(media.querySelectorAll('[data-hero-slide]'));
     if (slides.length < 2) return;
 
-    var SLIDE_INTERVAL = 4000; // fast, modern pacing per slide — no zoom, clean crossfade only
+    var SLIDE_INTERVAL = 3800; // fast, modern pacing per slide — no zoom, clean crossfade only
     var current = slides.findIndex(function (img) { return img.classList.contains('is-active'); });
     if (current < 0) current = 0;
     var timer = null;
@@ -709,7 +715,19 @@
 
   function renderCart() {
     var totalQty = cartState.reduce(function (sum, i) { return sum + i.qty; }, 0);
-    if (cartBadge) cartBadge.textContent = String(totalQty);
+    if (cartBadge) {
+      cartBadge.textContent = String(totalQty);
+      if (!prefersReducedMotion) {
+        cartBadge.classList.remove('is-bump');
+        void cartBadge.offsetWidth; // restart animation reliably on rapid add
+        cartBadge.classList.add('is-bump');
+        if (cartTriggerBtn) {
+          cartTriggerBtn.classList.remove('is-bump');
+          void cartTriggerBtn.offsetWidth;
+          cartTriggerBtn.classList.add('is-bump');
+        }
+      }
+    }
 
     if (!cartItemsWrap || !cartSubtotalEl) return;
 
