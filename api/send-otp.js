@@ -4,9 +4,9 @@
    Gmail address (taken from the verified ID token, never from
    client-supplied text) and sets the kn_otp session cookie.
 ========================================================= */
-var firebaseAuth = require('./_lib/firebaseAuth.js');
-var session = require('./_lib/session.js');
-var mailer = require('./_lib/mailer.js');
+var firebaseAuth = require('./lib/firebaseAuth.js');
+var session = require('./lib/session.js');
+var mailer = require('./lib/mailer.js');
 
 var GMAIL_DOMAIN_RE = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
 
