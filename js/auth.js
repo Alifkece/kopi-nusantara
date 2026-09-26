@@ -34,6 +34,7 @@ import {
   'use strict';
 
   var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var GMAIL_DOMAIN_RE = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
 
   /* =======================================================
      0. TOAST NOTIFICATIONS (replaces alert())
@@ -210,6 +211,190 @@ import {
   var loginSubmitBtn = document.getElementById('loginSubmitBtn');
   var registerSubmitBtn = document.getElementById('registerSubmitBtn');
   var googleAuthBtn = document.getElementById('googleAuthBtn');
+  var authTabsEl = authModal ? authModal.querySelector('.auth-screen__tabs') : null;
+  var authDividerEl = authModal ? authModal.querySelector('.auth-divider') : null;
+
+  /* =======================================================
+     5c. GMAIL OTP VERIFICATION (after Google Sign-In)
+     Reuses this same auth-screen: once a Google sign-in
+     resolves to a valid @gmail.com address, the modal swaps
+     from the Google/login/register panel into this OTP panel
+     instead of closing. Firebase Auth alone is NOT treated as
+     "signed in" for Google accounts — see window.KopiAuth below.
+  ======================================================= */
+  var otpForm = document.getElementById('otpForm');
+  var otpMaskedEmailEl = document.getElementById('otpMaskedEmail');
+  var otpError = document.getElementById('otpError');
+  var otpVerifyBtn = document.getElementById('otpVerifyBtn');
+  var otpResendBtn = document.getElementById('otpResendBtn');
+  var otpBoxes = otpForm ? Array.prototype.slice.call(otpForm.querySelectorAll('.otp-box')) : [];
+
+  var otpPendingUser = null;
+  var resendTimerId = null;
+  var googleVerificationState = { uid: null, verified: false };
+
+  function isGoogleProviderUser(user) {
+    return !!(user && user.providerData && user.providerData.some(function (p) {
+      return p.providerId === 'google.com';
+    }));
+  }
+
+  function maskEmailClient(email) {
+    var parts = String(email || '').split('@');
+    if (parts.length !== 2) return email || '';
+    var name = parts[0];
+    return (name.length <= 1 ? name : name[0] + '***') + '@' + parts[1];
+  }
+
+  function updateResendLabel(remaining) {
+    if (otpResendBtn) otpResendBtn.textContent = 'Kirim ulang dalam ' + remaining + ' detik';
+  }
+  function stopResendCountdown() {
+    if (resendTimerId) { window.clearInterval(resendTimerId); resendTimerId = null; }
+  }
+  function startResendCountdown(seconds) {
+    stopResendCountdown();
+    var remaining = Math.max(1, seconds || 60);
+    if (otpResendBtn) otpResendBtn.disabled = true;
+    updateResendLabel(remaining);
+    resendTimerId = window.setInterval(function () {
+      remaining -= 1;
+      if (remaining <= 0) {
+        stopResendCountdown();
+        if (otpResendBtn) { otpResendBtn.disabled = false; otpResendBtn.textContent = 'Kirim ulang kode'; }
+        return;
+      }
+      updateResendLabel(remaining);
+    }, 1000);
+  }
+
+  function showOtpPanel(maskedEmail) {
+    if (!authModal || !otpForm) return;
+    if (authModalTitle) authModalTitle.textContent = 'Verifikasi Email';
+    if (authContextNote) authContextNote.hidden = true;
+    if (authTabsEl) authTabsEl.hidden = true;
+    if (googleAuthBtn) googleAuthBtn.hidden = true;
+    if (authDividerEl) authDividerEl.hidden = true;
+    if (loginForm) loginForm.hidden = true;
+    if (registerForm) registerForm.hidden = true;
+    if (otpMaskedEmailEl) otpMaskedEmailEl.textContent = maskedEmail || '';
+    setFormError(otpError, '');
+    otpBoxes.forEach(function (b) { b.value = ''; });
+    otpForm.hidden = false;
+    if (!authModal.classList.contains('is-open')) {
+      authModal.classList.add('is-open');
+      authModal.setAttribute('aria-hidden', 'false');
+      if (window.__kopiScrollLock) window.__kopiScrollLock.lock();
+    }
+    if (otpBoxes[0]) otpBoxes[0].focus();
+  }
+
+  function hideOtpPanel() {
+    if (authTabsEl) authTabsEl.hidden = false;
+    if (googleAuthBtn) googleAuthBtn.hidden = false;
+    if (authDividerEl) authDividerEl.hidden = false;
+    if (otpForm) otpForm.hidden = true;
+    stopResendCountdown();
+    otpPendingUser = null;
+  }
+
+  function requestOtp(user) {
+    return user.getIdToken().then(function (idToken) {
+      return fetch('/api/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken: idToken })
+      }).then(function (resp) { return resp.json(); });
+    }).then(function (data) {
+      if (!data.ok) {
+        if (data.error === 'resend_cooldown') {
+          otpPendingUser = user;
+          showOtpPanel(maskEmailClient(user.email));
+          startResendCountdown(data.secondsLeft);
+          return;
+        }
+        return Promise.reject(data);
+      }
+      otpPendingUser = user;
+      showOtpPanel(data.maskedEmail);
+      startResendCountdown(data.resendCooldownSeconds || 60);
+    });
+  }
+
+  function submitOtpCode(code) {
+    if (!otpPendingUser) return Promise.reject({ message: 'Sesi verifikasi tidak ditemukan. Silakan masuk ulang.' });
+    return otpPendingUser.getIdToken().then(function (idToken) {
+      return fetch('/api/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken: idToken, code: code })
+      }).then(function (resp) { return resp.json(); });
+    });
+  }
+
+  otpBoxes.forEach(function (box, idx) {
+    box.addEventListener('input', function () {
+      box.value = box.value.replace(/\D/g, '').slice(0, 1);
+      if (box.value && otpBoxes[idx + 1]) otpBoxes[idx + 1].focus();
+    });
+    box.addEventListener('keydown', function (e) {
+      if (e.key === 'Backspace' && !box.value && otpBoxes[idx - 1]) {
+        otpBoxes[idx - 1].focus();
+      }
+    });
+    box.addEventListener('paste', function (e) {
+      var text = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '');
+      if (!text) return;
+      e.preventDefault();
+      for (var i = 0; i < otpBoxes.length; i++) { otpBoxes[i].value = text[i] || ''; }
+      var lastIdx = Math.min(text.length, otpBoxes.length) - 1;
+      if (otpBoxes[lastIdx]) otpBoxes[lastIdx].focus();
+    });
+  });
+
+  if (otpForm) {
+    otpForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (otpVerifyBtn.classList.contains('is-loading')) return;
+      var code = otpBoxes.map(function (b) { return b.value; }).join('');
+      if (!/^\d{6}$/.test(code)) {
+        setFormError(otpError, 'Masukkan 6 digit kode.');
+        return;
+      }
+      setFormError(otpError, '');
+      setButtonLoading(otpVerifyBtn, true);
+      submitOtpCode(code)
+        .then(function (data) {
+          if (!data.ok) {
+            setFormError(otpError, data.message || 'Kode salah.');
+            otpBoxes.forEach(function (b) { b.value = ''; });
+            if (otpBoxes[0]) otpBoxes[0].focus();
+            return;
+          }
+          var verifiedUser = otpPendingUser;
+          googleVerificationState = { uid: verifiedUser.uid, verified: true };
+          hideOtpPanel();
+          showToast('Berhasil masuk dengan Google.', 'success');
+          resolvePendingAfterAuth(verifiedUser);
+          closeAuthModal();
+        })
+        .catch(function () {
+          setFormError(otpError, 'Terjadi kesalahan. Coba lagi.');
+        })
+        .finally(function () {
+          setButtonLoading(otpVerifyBtn, false);
+        });
+    });
+  }
+
+  if (otpResendBtn) {
+    otpResendBtn.addEventListener('click', function () {
+      if (otpResendBtn.disabled || !otpPendingUser) return;
+      requestOtp(otpPendingUser).catch(function (err) {
+        showToast((err && err.message) || 'Gagal mengirim ulang kode.', 'error');
+      });
+    });
+  }
 
   // Set by window.KopiAuth.requireAuth() when checkout is what triggered
   // the auth screen. Resolved (and cleared) once login/register succeeds;
@@ -247,6 +432,7 @@ import {
     setFormError(registerError, '');
     if (loginForm) loginForm.reset();
     if (registerForm) registerForm.reset();
+    hideOtpPanel(); // menutup manual saat OTP = batal verifikasi, bukan menandai berhasil
     pendingAfterAuth = null; // menutup manual = batal, bukan "lanjutkan ke checkout"
   }
 
@@ -266,12 +452,39 @@ import {
     window.setTimeout(function () { callback(user); }, 200);
   }
   window.KopiAuth = {
-    isAuthenticated: function () { return !!auth.currentUser; },
+    // Untuk akun Google, "authenticated" berarti sudah lolos verifikasi
+    // OTP Gmail — bukan sekadar punya sesi Firebase Auth (lihat bagian 18
+    // pada instruksi asal: Firebase Auth != OTP verified).
+    isAuthenticated: function () {
+      var user = auth.currentUser;
+      if (!user) return false;
+      if (isGoogleProviderUser(user)) {
+        return googleVerificationState.uid === user.uid && googleVerificationState.verified;
+      }
+      return true;
+    },
     getCurrentUser: function () { return auth.currentUser; },
     requireAuth: function (onAuthenticated) {
-      if (auth.currentUser) { onAuthenticated(auth.currentUser); return; }
-      pendingAfterAuth = onAuthenticated;
-      openAuthModal('login', { fromCheckout: true });
+      var user = auth.currentUser;
+      if (!user) {
+        pendingAfterAuth = onAuthenticated;
+        openAuthModal('login', { fromCheckout: true });
+        return;
+      }
+      if (isGoogleProviderUser(user)) {
+        if (googleVerificationState.uid === user.uid && googleVerificationState.verified) {
+          onAuthenticated(user);
+          return;
+        }
+        // Sudah login Google tapi belum (atau belum diketahui) terverifikasi —
+        // minta OTP baru dan lanjutkan callback checkout setelah kode benar.
+        pendingAfterAuth = onAuthenticated;
+        requestOtp(user).catch(function (err) {
+          showToast((err && err.message) || 'Gagal mengirim kode verifikasi.', 'error');
+        });
+        return;
+      }
+      onAuthenticated(user);
     }
   };
 
@@ -365,12 +578,21 @@ import {
             .then(function () { return result.user; });
         })
         .then(function (user) {
-          showToast('Berhasil masuk dengan Google.', 'success');
-          resolvePendingAfterAuth(user);
-          closeAuthModal();
+          // Firebase Auth berhasil, TAPI login belum dianggap selesai:
+          // hanya @gmail.com yang didukung, dan bahkan itu masih harus
+          // lolos verifikasi kode OTP sebelum dianggap sah di level aplikasi.
+          if (!GMAIL_DOMAIN_RE.test(user.email || '')) {
+            return signOut(auth).then(function () {
+              return Promise.reject({ message: 'Hanya akun Gmail (@gmail.com) yang didukung untuk login Google.' });
+            });
+          }
+          // requestOtp() membuka panel OTP di modal yang sama — toast
+          // sukses & penutupan modal ditunda sampai kode benar-benar
+          // diverifikasi (lihat submit handler otpForm).
+          return requestOtp(user);
         })
         .catch(function (err) {
-          showToast(friendlyError(err), 'error');
+          showToast((err && err.message) || friendlyError(err), 'error');
         })
         .finally(function () {
           setButtonLoading(googleAuthBtn, false);
@@ -481,8 +703,33 @@ import {
      10. REACTIVE AUTH STATE
      Fires on load (session restore), and on every login/logout.
   ======================================================= */
+  function refreshGoogleVerificationState(user) {
+    if (!user || !isGoogleProviderUser(user)) {
+      googleVerificationState = { uid: null, verified: false };
+      return;
+    }
+    if (!GMAIL_DOMAIN_RE.test(user.email || '')) {
+      // Sesi Google lama (dari sebelum fitur ini ada) dengan email bukan
+      // @gmail.com — tidak didukung alur ini, jadi keluarkan otomatis.
+      signOut(auth).then(function () {
+        showToast('Hanya akun Gmail (@gmail.com) yang didukung. Silakan masuk ulang.', 'error');
+      });
+      return;
+    }
+    user.getIdToken().then(function (idToken) {
+      return fetch('/api/check-verified', { headers: { Authorization: 'Bearer ' + idToken } });
+    }).then(function (resp) { return resp.json(); })
+      .then(function (data) {
+        googleVerificationState = { uid: user.uid, verified: !!(data && data.verified) };
+      })
+      .catch(function () {
+        googleVerificationState = { uid: user.uid, verified: false };
+      });
+  }
+
   onAuthStateChanged(auth, function (user) {
     renderAuthUI(user);
+    refreshGoogleVerificationState(user);
   });
 
 })();
