@@ -4,8 +4,8 @@
    the kn_otp cookie. On success: clears kn_otp, sets kn_verified.
    On failure: increments attempts (re-signed, same expiry).
 ========================================================= */
-var firebaseAuth = require('./_lib/firebaseAuth.js');
-var session = require('./_lib/session.js');
+var firebaseAuth = require('./lib/firebaseAuth.js');
+var session = require('./lib/session.js');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
