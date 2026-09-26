@@ -829,6 +829,24 @@
             <span class="auth-submit__spinner" aria-hidden="true"></span>
           </button>
         </form>
+
+        <form class="auth-form otp-form" id="otpForm" data-auth-panel="otp" novalidate hidden>
+          <p class="otp-instructions">Kode telah dikirim ke <strong id="otpMaskedEmail">-</strong></p>
+          <div class="otp-inputs">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="1" class="otp-box" aria-label="Digit 1">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="1" class="otp-box" aria-label="Digit 2">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="1" class="otp-box" aria-label="Digit 3">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="1" class="otp-box" aria-label="Digit 4">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="1" class="otp-box" aria-label="Digit 5">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="1" class="otp-box" aria-label="Digit 6">
+          </div>
+          <p class="auth-form__error" id="otpError" hidden></p>
+          <button type="submit" class="btn btn--espresso auth-submit" id="otpVerifyBtn">
+            <span class="auth-submit__label">Verifikasi</span>
+            <span class="auth-submit__spinner" aria-hidden="true"></span>
+          </button>
+          <button type="button" class="auth-otp-resend" id="otpResendBtn" disabled>Kirim ulang dalam <span>60</span> detik</button>
+        </form>
       </div>
     </div>
   </div>
