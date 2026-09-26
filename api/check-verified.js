@@ -4,8 +4,8 @@
    -> { ok: true, verified: boolean }
    Read-only status check; never issues or clears cookies.
 ========================================================= */
-var firebaseAuth = require('./_lib/firebaseAuth.js');
-var session = require('./_lib/session.js');
+var firebaseAuth = require('./lib/firebaseAuth.js');
+var session = require('./lib/session.js');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
