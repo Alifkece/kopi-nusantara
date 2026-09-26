@@ -1,11 +1,15 @@
 /* =========================================================
    KOPI NUSANTARA — js/auth.js
    -----------------------------------------------------------
-   Firebase Authentication (Google + Email/Password) and the
-   Firestore `users/{uid}` profile document.
+   Firebase Authentication (Google + Email/Password), Gmail OTP
+   verification (server-side, api/send-otp.js + api/verify-otp.js +
+   api/check-verified.js), and the Firestore `users/{uid}` profile
+   document.
 
-   NOT implemented in this stage on purpose: OTP / email
-   verification. That is a separate, later stage.
+   Firebase Auth success alone is NEVER treated as "logged in" for
+   ANY provider (Email/Password, Register, Google): the user must
+   also pass server-verified Gmail OTP before window.KopiAuth
+   considers them authenticated. See window.KopiAuth below.
 
    This module only touches auth-related DOM (account menu,
    auth modal, toasts). It never re-initializes Firebase —
@@ -215,12 +219,13 @@ import {
   var authDividerEl = authModal ? authModal.querySelector('.auth-divider') : null;
 
   /* =======================================================
-     5c. GMAIL OTP VERIFICATION (after Google Sign-In)
-     Reuses this same auth-screen: once a Google sign-in
-     resolves to a valid @gmail.com address, the modal swaps
-     from the Google/login/register panel into this OTP panel
-     instead of closing. Firebase Auth alone is NOT treated as
-     "signed in" for Google accounts — see window.KopiAuth below.
+     5c. GMAIL OTP VERIFICATION (after ANY sign-in: Google,
+     Email/Password login, or Register)
+     Reuses this same auth-screen: once Firebase Auth resolves
+     to a valid @gmail.com address, the modal swaps from the
+     Google/login/register panel into this OTP panel instead of
+     closing. Firebase Auth alone is NOT treated as "signed in"
+     for ANY provider — see window.KopiAuth below.
   ======================================================= */
   var otpForm = document.getElementById('otpForm');
   var otpMaskedEmailEl = document.getElementById('otpMaskedEmail');
@@ -230,14 +235,12 @@ import {
   var otpBoxes = otpForm ? Array.prototype.slice.call(otpForm.querySelectorAll('.otp-box')) : [];
 
   var otpPendingUser = null;
+  var otpSuccessMessage = 'Berhasil masuk.';
   var resendTimerId = null;
-  var googleVerificationState = { uid: null, verified: false };
-
-  function isGoogleProviderUser(user) {
-    return !!(user && user.providerData && user.providerData.some(function (p) {
-      return p.providerId === 'google.com';
-    }));
-  }
+  // Tracks server-verified OTP status for whichever user is currently
+  // signed in via Firebase Auth — used for ALL providers (Email/Password,
+  // Register, Google), not just Google. See window.KopiAuth below.
+  var otpVerificationState = { uid: null, verified: false };
 
   function maskEmailClient(email) {
     var parts = String(email || '').split('@');
@@ -298,7 +301,8 @@ import {
     otpPendingUser = null;
   }
 
-  function requestOtp(user) {
+  function requestOtp(user, successMessage) {
+    if (successMessage) otpSuccessMessage = successMessage;
     return user.getIdToken().then(function (idToken) {
       return fetch('/api/send-otp', {
         method: 'POST',
@@ -372,9 +376,9 @@ import {
             return;
           }
           var verifiedUser = otpPendingUser;
-          googleVerificationState = { uid: verifiedUser.uid, verified: true };
+          otpVerificationState = { uid: verifiedUser.uid, verified: true };
           hideOtpPanel();
-          showToast('Berhasil masuk dengan Google.', 'success');
+          showToast(otpSuccessMessage || 'Berhasil masuk.', 'success');
           resolvePendingAfterAuth(verifiedUser);
           closeAuthModal();
         })
@@ -452,16 +456,14 @@ import {
     window.setTimeout(function () { callback(user); }, 200);
   }
   window.KopiAuth = {
-    // Untuk akun Google, "authenticated" berarti sudah lolos verifikasi
-    // OTP Gmail — bukan sekadar punya sesi Firebase Auth (lihat bagian 18
-    // pada instruksi asal: Firebase Auth != OTP verified).
+    // "authenticated" berarti sudah lolos verifikasi OTP Gmail — untuk
+    // SEMUA provider (Email/Password, Register, Google), bukan sekadar
+    // punya sesi Firebase Auth (lihat bagian 18 pada instruksi asal:
+    // Firebase Auth != OTP verified).
     isAuthenticated: function () {
       var user = auth.currentUser;
       if (!user) return false;
-      if (isGoogleProviderUser(user)) {
-        return googleVerificationState.uid === user.uid && googleVerificationState.verified;
-      }
-      return true;
+      return otpVerificationState.uid === user.uid && otpVerificationState.verified;
     },
     getCurrentUser: function () { return auth.currentUser; },
     requireAuth: function (onAuthenticated) {
@@ -471,20 +473,16 @@ import {
         openAuthModal('login', { fromCheckout: true });
         return;
       }
-      if (isGoogleProviderUser(user)) {
-        if (googleVerificationState.uid === user.uid && googleVerificationState.verified) {
-          onAuthenticated(user);
-          return;
-        }
-        // Sudah login Google tapi belum (atau belum diketahui) terverifikasi —
-        // minta OTP baru dan lanjutkan callback checkout setelah kode benar.
-        pendingAfterAuth = onAuthenticated;
-        requestOtp(user).catch(function (err) {
-          showToast((err && err.message) || 'Gagal mengirim kode verifikasi.', 'error');
-        });
+      if (otpVerificationState.uid === user.uid && otpVerificationState.verified) {
+        onAuthenticated(user);
         return;
       }
-      onAuthenticated(user);
+      // Sudah login Firebase tapi belum (atau belum diketahui) terverifikasi
+      // OTP — minta OTP baru dan lanjutkan callback checkout setelah kode benar.
+      pendingAfterAuth = onAuthenticated;
+      requestOtp(user).catch(function (err) {
+        showToast((err && err.message) || 'Gagal mengirim kode verifikasi.', 'error');
+      });
     }
   };
 
@@ -589,7 +587,7 @@ import {
           // requestOtp() membuka panel OTP di modal yang sama — toast
           // sukses & penutupan modal ditunda sampai kode benar-benar
           // diverifikasi (lihat submit handler otpForm).
-          return requestOtp(user);
+          return requestOtp(user, 'Berhasil masuk dengan Google.');
         })
         .catch(function (err) {
           showToast((err && err.message) || friendlyError(err), 'error');
@@ -611,15 +609,21 @@ import {
       var email = document.getElementById('loginEmail').value.trim();
       var password = document.getElementById('loginPassword').value;
 
+      if (!GMAIL_DOMAIN_RE.test(email)) {
+        setFormError(loginError, 'Hanya email Gmail (@gmail.com) yang didukung.');
+        return;
+      }
+
       setButtonLoading(loginSubmitBtn, true);
       signInWithEmailAndPassword(auth, email, password)
         .then(function (result) {
-          showToast('Berhasil masuk.', 'success');
-          resolvePendingAfterAuth(result.user);
-          closeAuthModal();
+          // Firebase Auth berhasil, TAPI login belum dianggap selesai —
+          // sama seperti Google: harus lolos verifikasi kode OTP dulu
+          // (lihat window.KopiAuth.isAuthenticated).
+          return requestOtp(result.user, 'Berhasil masuk.');
         })
         .catch(function (err) {
-          setFormError(loginError, friendlyError(err));
+          setFormError(loginError, (err && err.message) || friendlyError(err));
         })
         .finally(function () {
           setButtonLoading(loginSubmitBtn, false);
@@ -644,6 +648,10 @@ import {
         setFormError(registerError, 'Konfirmasi password tidak cocok.');
         return;
       }
+      if (!GMAIL_DOMAIN_RE.test(email)) {
+        setFormError(registerError, 'Hanya email Gmail (@gmail.com) yang didukung.');
+        return;
+      }
 
       setButtonLoading(registerSubmitBtn, true);
       var createdUser = null;
@@ -664,12 +672,13 @@ import {
           });
         })
         .then(function () {
-          showToast('Akun berhasil dibuat. Selamat datang!', 'success');
-          resolvePendingAfterAuth(createdUser);
-          closeAuthModal();
+          // Akun sudah dibuat, TAPI belum dianggap login penuh — harus
+          // lolos verifikasi kode OTP dulu, sama seperti login/Google.
+          showToast('Akun berhasil dibuat. Silakan verifikasi kode OTP.', 'success');
+          return requestOtp(createdUser, 'Akun berhasil dibuat dan diverifikasi. Selamat datang!');
         })
         .catch(function (err) {
-          setFormError(registerError, friendlyError(err));
+          setFormError(registerError, (err && err.message) || friendlyError(err));
         })
         .finally(function () {
           setButtonLoading(registerSubmitBtn, false);
@@ -703,33 +712,36 @@ import {
      10. REACTIVE AUTH STATE
      Fires on load (session restore), and on every login/logout.
   ======================================================= */
-  function refreshGoogleVerificationState(user) {
-    if (!user || !isGoogleProviderUser(user)) {
-      googleVerificationState = { uid: null, verified: false };
+  function refreshOtpVerificationState(user) {
+    if (!user) {
+      otpVerificationState = { uid: null, verified: false };
       return;
     }
     if (!GMAIL_DOMAIN_RE.test(user.email || '')) {
-      // Sesi Google lama (dari sebelum fitur ini ada) dengan email bukan
-      // @gmail.com — tidak didukung alur ini, jadi keluarkan otomatis.
+      // Sesi lama (dari sebelum fitur Gmail-only OTP ini ada) dengan email
+      // bukan @gmail.com — tidak didukung alur ini, jadi keluarkan otomatis.
       signOut(auth).then(function () {
         showToast('Hanya akun Gmail (@gmail.com) yang didukung. Silakan masuk ulang.', 'error');
       });
       return;
     }
+    // Berlaku untuk SEMUA provider (Email/Password, Register, Google) —
+    // server-side verified session (api/check-verified.js) adalah satu-
+    // satunya source of truth, bukan sekadar Firebase currentUser.
     user.getIdToken().then(function (idToken) {
       return fetch('/api/check-verified', { headers: { Authorization: 'Bearer ' + idToken } });
     }).then(function (resp) { return resp.json(); })
       .then(function (data) {
-        googleVerificationState = { uid: user.uid, verified: !!(data && data.verified) };
+        otpVerificationState = { uid: user.uid, verified: !!(data && data.verified) };
       })
       .catch(function () {
-        googleVerificationState = { uid: user.uid, verified: false };
+        otpVerificationState = { uid: user.uid, verified: false };
       });
   }
 
   onAuthStateChanged(auth, function (user) {
     renderAuthUI(user);
-    refreshGoogleVerificationState(user);
+    refreshOtpVerificationState(user);
   });
 
 })();
