@@ -1959,6 +1959,8 @@ svg{ display: block; }
 /* OTP panel (Verifikasi Email) — reuses .auth-form/.auth-submit/.auth-form__error above */
 .otp-instructions{ font-size: 13.5px; color: var(--c-coffee-2); margin: 0 0 2px; }
 .otp-instructions strong{ color: var(--c-espresso); }
+.otp-hint{ font-size: 12px; color: var(--c-coffee-2); opacity: .8; margin: 0 0 14px; line-height: 1.5; }
+.otp-hint strong{ color: var(--c-espresso); font-weight: 600; }
 .otp-inputs{ display: flex; gap: 10px; justify-content: space-between; }
 .otp-box{
   width: 100%; aspect-ratio: 1 / 1; text-align: center;
