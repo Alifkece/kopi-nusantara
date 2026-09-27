@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://www.kopi-nusantara.biz.id/sitemap.xml
