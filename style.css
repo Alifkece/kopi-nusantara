@@ -2149,33 +2149,26 @@ svg{ display: block; }
     margin: 0; border-radius: 0;
   }
   .auth-screen__visual{
-    /* Was full-width with a short fixed/clamped height — that forces
-       object-fit:cover to crop the video's own logo/wordmark artwork
-       top and bottom (it's a vertically-composed mark, not edge-to-edge
-       footage), which is what made it look "kepotong". Fix: shrink the
-       video by WIDTH instead of height and let it keep its native 16:9
-       aspect ratio (like the desktop treatment below already does), so
-       the full frame is always visible — just displayed smaller, as a
-       boxed card, rather than cropped. Height then falls out of that
-       width automatically, which is what frees up room for the form. */
-    display: flex; align-items: center; justify-content: center;
+    /* Full-bleed 16:9, edge-to-edge, exactly like desktop — no padding,
+       no boxed/letterboxed "card" look. This is the SAME size in both
+       Masuk and Daftar (nothing here changes when the tab switches),
+       so there's no jump/blank flash when toggling tabs — only the
+       panel below adapts, and it does so with a transition (below) so
+       any remaining spacing change animates smoothly instead of
+       snapping. */
+    display: flex;
     flex: 0 0 auto;
-    width: 100%;
-    padding: 14px 20px;
-    padding-top: calc(14px + env(safe-area-inset-top, 0px));
-    background: linear-gradient(160deg, var(--c-coffee) 0%, var(--c-espresso) 100%);
+    width: 100%; aspect-ratio: 16 / 9;
+    padding: 0;
   }
   .auth-screen__visual .eyebrow{ display: none; }
   .auth-screen__visual-title{ font-size: 17px; line-height: 1.2; margin-bottom: 3px; }
   .auth-screen__visual-quote{ font-size: 11px; max-width: none; }
   .auth-screen__visual-media--mobile{
-    position: static;
-    display: block;
-    width: min(56vw, 220px);
-    height: auto;
-    aspect-ratio: 16 / 9;
-    border-radius: var(--radius-m);
-    box-shadow: 0 14px 30px rgba(12,7,4,.35);
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover; object-position: center 38%;
+    border-radius: 0; box-shadow: none;
     transform: none;
   }
   .auth-screen.is-open .auth-screen__visual-media--mobile{ transform: none; }
@@ -2183,40 +2176,78 @@ svg{ display: block; }
     flex: 1 1 auto; min-height: 0; height: auto; max-height: none;
     overflow: hidden;
     display: flex; flex-direction: column; justify-content: center;
-    padding: 16px 22px calc(18px + env(safe-area-inset-bottom, 0px));
+    padding: 12px 22px calc(14px + env(safe-area-inset-bottom, 0px));
+    transition: padding .25s ease;
   }
-  .auth-screen__head{ margin-bottom: 10px; }
-  .auth-screen__head h3{ font-size: 19px; }
-  .auth-screen__context{ margin-bottom: 10px; padding: 8px 12px; }
-  .auth-screen__tabs{ margin-bottom: 10px; }
-  .auth-google-btn{ padding: 10px 20px; }
-  .auth-divider{ margin: 10px 0; }
-  .auth-form{ gap: 10px; }
-  .auth-field{ gap: 4px; }
-  .auth-field input{ padding: 10px 14px; }
+  .auth-screen__head{ margin-bottom: 8px; transition: margin .25s ease; }
+  .auth-screen__head h3{ font-size: 18px; }
+  .auth-screen__context{ margin-bottom: 8px; padding: 8px 12px; }
+  .auth-screen__tabs{ margin-bottom: 8px; transition: margin .25s ease; }
+  .auth-google-btn{ padding: 9px 20px; transition: padding .25s ease; }
+  .auth-divider{ margin: 8px 0; transition: margin .25s ease; }
+  .auth-form{ gap: 8px; transition: gap .25s ease; }
+  .auth-field{ gap: 3px; }
+  .auth-field input{ padding: 9px 14px; transition: padding .25s ease; }
   .auth-screen__close{ top: calc(14px + env(safe-area-inset-top, 0px)); right: 16px; width: 40px; height: 40px; }
   /* 16px mencegah iOS zoom otomatis saat input difokus (yang menggeser viewport) */
   .auth-field input{ font-size: 16px; }
-  .auth-submit, .auth-google-btn{ min-height: 44px; }
+  .auth-submit, .auth-google-btn{ min-height: 42px; transition: min-height .25s ease; }
   .auth-form__error{ overflow-wrap: anywhere; }
 
   /* DAFTAR mode has 4 fields + button (Nama/Email/Password/Konfirmasi
-     Password/tombol Daftar) vs 2 for MASUK — needs extra compaction to
-     still fit one screen with no scroll. js/auth.js toggles .is-register
-     on #authModal whenever the Daftar tab is the active one. Video card
-     shrinks a bit too (by width, so it's still never cropped). */
-  .auth-screen.is-register .auth-screen__visual{ padding-top: calc(8px + env(safe-area-inset-top, 0px)); padding-bottom: 8px; }
-  .auth-screen.is-register .auth-screen__visual-media--mobile{ width: min(40vw, 160px); }
-  .auth-screen.is-register .auth-screen__panel{ padding-top: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
-  .auth-screen.is-register .auth-screen__head{ margin-bottom: 6px; }
-  .auth-screen.is-register .auth-screen__head h3{ font-size: 17px; }
-  .auth-screen.is-register .auth-screen__tabs{ margin-bottom: 6px; }
-  .auth-screen.is-register .auth-google-btn{ padding: 8px 20px; }
-  .auth-screen.is-register .auth-divider{ margin: 6px 0; }
-  .auth-screen.is-register .auth-form{ gap: 6px; }
+     Password/tombol Daftar) vs 2 for MASUK — needs a bit more
+     compaction to still fit one screen with no scroll. js/auth.js
+     toggles .is-register on #authModal whenever Daftar is active.
+     Note: the VIDEO itself never changes here — only panel padding/
+     gaps do, and those are transitioned above, so switching tabs
+     stays smooth instead of jumping. */
+  .auth-screen.is-register .auth-screen__panel{ padding-top: 8px; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+  .auth-screen.is-register .auth-screen__head{ margin-bottom: 5px; }
+  .auth-screen.is-register .auth-screen__tabs{ margin-bottom: 5px; }
+  .auth-screen.is-register .auth-google-btn{ padding: 7px 20px; }
+  .auth-screen.is-register .auth-divider{ margin: 5px 0; }
+  .auth-screen.is-register .auth-form{ gap: 5px; }
   .auth-screen.is-register .auth-field{ gap: 2px; }
-  .auth-screen.is-register .auth-field input{ padding: 7px 14px; }
-  .auth-screen.is-register .auth-submit{ min-height: 40px; }
+  .auth-screen.is-register .auth-field input{ padding: 6px 14px; }
+  .auth-screen.is-register .auth-submit{ min-height: 38px; }
+}
+
+/* ---- AUTH, VERY SHORT VIEWPORT (landscape phone, split-screen, etc.) ----
+   Keyed off viewport HEIGHT (not the active tab), so it never causes a
+   jump when switching Masuk/Daftar — only when the device itself is
+   short. */
+@media (max-width: 860px) and (max-height: 700px){
+  /* Only here (genuinely short viewport) do we trade a little bit of
+     video height for room — user explicitly OK'd this for the very-short
+     case. Aspect-ratio is dropped just for this query so the height can
+     go below what 16:9-at-full-width would give; object-position keeps
+     the cup/mark (not just the very top) in frame. */
+  .auth-screen__visual{ aspect-ratio: auto; height: 22vh; min-height: 90px; max-height: 170px; }
+  .auth-screen__panel{ padding-top: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
+  .auth-screen__head{ margin-bottom: 4px; }
+  .auth-screen__head h3{ font-size: 16px; }
+  .auth-screen__context{ margin-bottom: 4px; padding: 5px 10px; }
+  .auth-screen__tabs{ margin-bottom: 4px; }
+  .auth-google-btn{ padding: 6px 20px; }
+  .auth-divider{ margin: 4px 0; }
+  .auth-form{ gap: 4px; }
+  .auth-field{ gap: 1px; }
+  .auth-field input{ padding: 5px 14px; }
+  .auth-submit, .auth-google-btn{ min-height: 34px; }
+
+  /* DAFTAR needs even more room than MASUK in this already-tight case. */
+  .auth-screen.is-register .auth-screen__visual{ height: 12vh; min-height: 56px; }
+  .auth-screen.is-register .auth-screen__panel{ padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px)); }
+  .auth-screen.is-register .auth-screen__head{ margin-bottom: 2px; }
+  .auth-screen.is-register .auth-screen__head h3{ font-size: 14px; }
+  .auth-screen.is-register .auth-screen__tabs{ margin-bottom: 3px; }
+  .auth-screen.is-register .auth-google-btn{ padding: 4px 20px; }
+  .auth-screen.is-register .auth-divider{ margin: 3px 0; }
+  .auth-screen.is-register .auth-form{ gap: 2px; }
+  .auth-screen.is-register .auth-field{ gap: 0px; }
+  .auth-screen.is-register .auth-field span{ font-size: 10px; }
+  .auth-screen.is-register .auth-field input{ padding: 4px 14px; }
+  .auth-screen.is-register .auth-submit{ min-height: 28px; }
 }
 
 /* ---- PRODUCT DETAIL MODAL + CART (<= 780px) ---- */
