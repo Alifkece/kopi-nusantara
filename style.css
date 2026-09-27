@@ -2198,6 +2198,49 @@ svg{ display: block; }
   .auth-form__error{ overflow-wrap: anywhere; }
 }
 
+/* MASUK (login) on mobile: fits ONE screen, no scroll. It only has 2
+   fields, so slightly tighter spacing is enough — the video stays full
+   16:9. DAFTAR keeps the roomy spacing above and scrolls instead. Paddings
+   are transitioned so switching tabs animates smoothly. */
+@media (max-width: 860px){
+  .auth-screen__panel,
+  .auth-screen__head, .auth-screen__tabs, .auth-divider, .auth-form,
+  .auth-field input, .auth-google-btn, .auth-submit{
+    transition: padding .28s ease, margin .28s ease, gap .28s ease, min-height .28s ease, font-size .28s ease;
+  }
+  .auth-screen:not(.is-register) .auth-screen__panel{
+    overflow-y: hidden;
+    padding-top: 18px; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  }
+  /* If the checkout note is showing there's extra content: allow scroll rather than clip. */
+  .auth-screen:not(.is-register) .auth-screen__panel:has(#authContextNote:not([hidden])){ overflow-y: auto; }
+  .auth-screen:not(.is-register) .auth-screen__head .eyebrow{ display: none; }
+  .auth-screen:not(.is-register) .auth-screen__head{ margin-bottom: 12px; }
+  .auth-screen:not(.is-register) .auth-screen__head h3{ font-size: 20px; }
+  .auth-screen:not(.is-register) .auth-screen__tabs{ margin-bottom: 12px; }
+  .auth-screen:not(.is-register) .auth-google-btn{ padding: 11px 20px; min-height: 46px; }
+  .auth-screen:not(.is-register) .auth-divider{ margin: 14px 0; }
+  .auth-screen:not(.is-register) .auth-form{ gap: 12px; }
+  .auth-screen:not(.is-register) .auth-field{ gap: 5px; }
+  .auth-screen:not(.is-register) .auth-field input{ padding: 12px 16px; }
+  .auth-screen:not(.is-register) .auth-submit{ min-height: 48px; margin-top: 4px; }
+}
+@media (max-width: 860px) and (max-height: 640px){
+  .auth-screen:not(.is-register) .auth-screen__panel{ padding-top: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .auth-screen:not(.is-register) .auth-screen__head{ margin-bottom: 6px; }
+  .auth-screen:not(.is-register) .auth-screen__head h3{ font-size: 18px; }
+  .auth-screen:not(.is-register) .auth-screen__tabs{ margin-bottom: 8px; }
+  .auth-screen:not(.is-register) .auth-google-btn{ padding: 8px 20px; min-height: 40px; }
+  .auth-screen:not(.is-register) .auth-divider{ margin: 8px 0; }
+  .auth-screen:not(.is-register) .auth-form{ gap: 8px; }
+  .auth-screen:not(.is-register) .auth-field input{ padding: 9px 16px; }
+  .auth-screen:not(.is-register) .auth-submit{ min-height: 42px; }
+}
+/* Too short to fit even so (tiny/landscape): scroll instead of clipping. */
+@media (max-width: 860px) and (max-height: 560px){
+  .auth-screen:not(.is-register) .auth-screen__panel{ overflow-y: auto; }
+}
+
 /* Landscape phone: video at 16:9 would fill the whole screen, so let the
    whole card scroll (video + form together) instead of pinning the video. */
 @media (max-width: 860px) and (orientation: landscape){
