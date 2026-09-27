@@ -2149,22 +2149,36 @@ svg{ display: block; }
     margin: 0; border-radius: 0;
   }
   .auth-screen__visual{
-    display: flex;
+    /* Was full-width with a short fixed/clamped height — that forces
+       object-fit:cover to crop the video's own logo/wordmark artwork
+       top and bottom (it's a vertically-composed mark, not edge-to-edge
+       footage), which is what made it look "kepotong". Fix: shrink the
+       video by WIDTH instead of height and let it keep its native 16:9
+       aspect ratio (like the desktop treatment below already does), so
+       the full frame is always visible — just displayed smaller, as a
+       boxed card, rather than cropped. Height then falls out of that
+       width automatically, which is what frees up room for the form. */
+    display: flex; align-items: center; justify-content: center;
     flex: 0 0 auto;
     width: 100%;
-    /* Height now scales with viewport height instead of a fixed 16:9
-       ratio. The fixed ratio made the video too tall on phones, leaving
-       too little room for the register form and causing the panel's
-       overflow:hidden to clip the bottom (Daftar button/Konfirmasi
-       Password). The video keeps object-fit:cover, so it's still never
-       distorted — just shorter. */
-    height: clamp(70px, 15dvh, 150px);
-    padding: 12px 20px;
-    padding-top: calc(12px + env(safe-area-inset-top, 0px));
+    padding: 14px 20px;
+    padding-top: calc(14px + env(safe-area-inset-top, 0px));
+    background: linear-gradient(160deg, var(--c-coffee) 0%, var(--c-espresso) 100%);
   }
   .auth-screen__visual .eyebrow{ display: none; }
   .auth-screen__visual-title{ font-size: 17px; line-height: 1.2; margin-bottom: 3px; }
   .auth-screen__visual-quote{ font-size: 11px; max-width: none; }
+  .auth-screen__visual-media--mobile{
+    position: static;
+    display: block;
+    width: min(56vw, 220px);
+    height: auto;
+    aspect-ratio: 16 / 9;
+    border-radius: var(--radius-m);
+    box-shadow: 0 14px 30px rgba(12,7,4,.35);
+    transform: none;
+  }
+  .auth-screen.is-open .auth-screen__visual-media--mobile{ transform: none; }
   .auth-screen__panel{
     flex: 1 1 auto; min-height: 0; height: auto; max-height: none;
     overflow: hidden;
@@ -2189,8 +2203,10 @@ svg{ display: block; }
   /* DAFTAR mode has 4 fields + button (Nama/Email/Password/Konfirmasi
      Password/tombol Daftar) vs 2 for MASUK — needs extra compaction to
      still fit one screen with no scroll. js/auth.js toggles .is-register
-     on #authModal whenever the Daftar tab is the active one. */
-  .auth-screen.is-register .auth-screen__visual{ height: clamp(52px, 9dvh, 100px); }
+     on #authModal whenever the Daftar tab is the active one. Video card
+     shrinks a bit too (by width, so it's still never cropped). */
+  .auth-screen.is-register .auth-screen__visual{ padding-top: calc(8px + env(safe-area-inset-top, 0px)); padding-bottom: 8px; }
+  .auth-screen.is-register .auth-screen__visual-media--mobile{ width: min(40vw, 160px); }
   .auth-screen.is-register .auth-screen__panel{ padding-top: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
   .auth-screen.is-register .auth-screen__head{ margin-bottom: 6px; }
   .auth-screen.is-register .auth-screen__head h3{ font-size: 17px; }
