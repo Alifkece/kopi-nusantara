@@ -1876,10 +1876,12 @@ svg{ display: block; }
 .auth-screen__visual-media--desktop{ display: none; }
 .auth-screen__visual-media--mobile{ display: block; }
 .auth-screen__visual-overlay{
-  position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(41,34,27,.35) 0%, rgba(20,13,8,.88) 100%);
+  /* Dark gradient removed on every breakpoint — video must stay bright/
+     clean, not just on desktop (this used to only be hidden >=861px,
+     which is why it still showed as a dark overlay on mobile). */
+  display: none;
 }
-.auth-screen__visual-content{ position: relative; z-index: 1; }
+.auth-screen__visual-content{ display: none; }
 .auth-screen__visual .eyebrow{ color: var(--c-gold-soft); }
 .auth-screen__visual-title{
   font-family: var(--f-display); font-weight: 600;
@@ -2149,9 +2151,16 @@ svg{ display: block; }
   .auth-screen__visual{
     display: flex;
     flex: 0 0 auto;
-    width: 100%; aspect-ratio: 16 / 9;
-    padding: 16px 20px;
-    padding-top: calc(16px + env(safe-area-inset-top, 0px));
+    width: 100%;
+    /* Height now scales with viewport height instead of a fixed 16:9
+       ratio. The fixed ratio made the video too tall on phones, leaving
+       too little room for the register form and causing the panel's
+       overflow:hidden to clip the bottom (Daftar button/Konfirmasi
+       Password). The video keeps object-fit:cover, so it's still never
+       distorted — just shorter. */
+    height: clamp(70px, 15dvh, 150px);
+    padding: 12px 20px;
+    padding-top: calc(12px + env(safe-area-inset-top, 0px));
   }
   .auth-screen__visual .eyebrow{ display: none; }
   .auth-screen__visual-title{ font-size: 17px; line-height: 1.2; margin-bottom: 3px; }
@@ -2176,6 +2185,22 @@ svg{ display: block; }
   .auth-field input{ font-size: 16px; }
   .auth-submit, .auth-google-btn{ min-height: 44px; }
   .auth-form__error{ overflow-wrap: anywhere; }
+
+  /* DAFTAR mode has 4 fields + button (Nama/Email/Password/Konfirmasi
+     Password/tombol Daftar) vs 2 for MASUK — needs extra compaction to
+     still fit one screen with no scroll. js/auth.js toggles .is-register
+     on #authModal whenever the Daftar tab is the active one. */
+  .auth-screen.is-register .auth-screen__visual{ height: clamp(52px, 9dvh, 100px); }
+  .auth-screen.is-register .auth-screen__panel{ padding-top: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .auth-screen.is-register .auth-screen__head{ margin-bottom: 6px; }
+  .auth-screen.is-register .auth-screen__head h3{ font-size: 17px; }
+  .auth-screen.is-register .auth-screen__tabs{ margin-bottom: 6px; }
+  .auth-screen.is-register .auth-google-btn{ padding: 8px 20px; }
+  .auth-screen.is-register .auth-divider{ margin: 6px 0; }
+  .auth-screen.is-register .auth-form{ gap: 6px; }
+  .auth-screen.is-register .auth-field{ gap: 2px; }
+  .auth-screen.is-register .auth-field input{ padding: 7px 14px; }
+  .auth-screen.is-register .auth-submit{ min-height: 40px; }
 }
 
 /* ---- PRODUCT DETAIL MODAL + CART (<= 780px) ---- */
