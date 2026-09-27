@@ -219,6 +219,65 @@ import {
   var authDividerEl = authModal ? authModal.querySelector('.auth-divider') : null;
 
   /* =======================================================
+     5a. AUTH VIDEO — autoplay WITH sound, no duplicates
+     Both <video> elements ship muted+autoplay+loop in the HTML (so they
+     always autoplay silently, even before this script runs). This script
+     only adds sound: right when the modal actually opens (i.e. inside a
+     user click), it unmutes whichever one is currently visible (mobile vs
+     desktop, picked with the same 861px breakpoint the CSS uses) and calls
+     play() again — required because merely removing "muted" doesn't make
+     a browser start playing audio without a fresh play() call tied to a
+     user gesture. The other (inactive) video is paused/reset so only one
+     video is ever producing sound. On close, both are paused and reset to
+     0 so the next open always starts a single, fresh playback instead of
+     stacking another one on top.
+  ======================================================= */
+  var authVisualDesktop = authModal ? authModal.querySelector('.auth-screen__visual-media--desktop') : null;
+  var authVisualMobile = authModal ? authModal.querySelector('.auth-screen__visual-media--mobile') : null;
+  var authDesktopMQ = window.matchMedia('(min-width: 861px)');
+
+  function getActiveAuthVideo() {
+    return authDesktopMQ.matches ? authVisualDesktop : authVisualMobile;
+  }
+  function getInactiveAuthVideo() {
+    return authDesktopMQ.matches ? authVisualMobile : authVisualDesktop;
+  }
+  function resetAuthVideo(video) {
+    if (!video) return;
+    video.pause();
+    try { video.currentTime = 0; } catch (e) { /* ignore — not seekable yet */ }
+  }
+  function playActiveAuthVideo() {
+    resetAuthVideo(getInactiveAuthVideo());
+    var active = getActiveAuthVideo();
+    if (!active) return;
+    active.muted = false;
+    active.loop = true;
+    var playPromise = active.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(function () {
+        // Browser blocked the unmuted play() (rare — this only runs right
+        // after a user click). Fail silently rather than log a console error.
+      });
+    }
+  }
+  function stopAllAuthVideos() {
+    resetAuthVideo(authVisualDesktop);
+    resetAuthVideo(authVisualMobile);
+  }
+  // If the viewport crosses the mobile/desktop breakpoint while the modal
+  // is already open (e.g. rotating a tablet), swap which video is playing
+  // instead of ever letting both run at once.
+  var handleAuthBreakpointChange = function () {
+    if (authModal && authModal.classList.contains('is-open')) playActiveAuthVideo();
+  };
+  if (authDesktopMQ.addEventListener) {
+    authDesktopMQ.addEventListener('change', handleAuthBreakpointChange);
+  } else if (authDesktopMQ.addListener) {
+    authDesktopMQ.addListener(handleAuthBreakpointChange);
+  }
+
+  /* =======================================================
      5c. GMAIL OTP VERIFICATION (after ANY sign-in: Google,
      Email/Password login, or Register)
      Reuses this same auth-screen: once Firebase Auth resolves
@@ -288,6 +347,7 @@ import {
       authModal.classList.add('is-open');
       authModal.setAttribute('aria-hidden', 'false');
       if (window.__kopiScrollLock) window.__kopiScrollLock.lock();
+      playActiveAuthVideo();
     }
     if (otpBoxes[0]) otpBoxes[0].focus();
   }
@@ -426,12 +486,14 @@ import {
     authModal.classList.add('is-open');
     authModal.setAttribute('aria-hidden', 'false');
     if (window.__kopiScrollLock) window.__kopiScrollLock.lock();
+    playActiveAuthVideo();
   }
   function closeAuthModal() {
     if (!authModal || !authModal.classList.contains('is-open')) return;
     authModal.classList.remove('is-open');
     authModal.setAttribute('aria-hidden', 'true');
     if (window.__kopiScrollLock) window.__kopiScrollLock.unlock();
+    stopAllAuthVideos();
     setFormError(loginError, '');
     setFormError(registerError, '');
     if (loginForm) loginForm.reset();
@@ -493,6 +555,7 @@ import {
       btn.classList.toggle('is-active', active);
       btn.setAttribute('aria-selected', String(active));
     });
+    if (authModal) authModal.classList.toggle('is-register', tab === 'register');
     if (authModalTitle) authModalTitle.textContent = tab === 'register' ? 'Buat Akun Baru' : 'Masuk ke Akun Anda';
     setFormError(loginError, '');
     setFormError(registerError, '');
