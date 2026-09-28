@@ -261,11 +261,11 @@ Semua rahasia hanya dipakai di server (folder `api/`) dan tidak pernah dikirim k
       <img src="assets/developer/developer.jpg" alt="Foto developer" width="180">
     </td>
     <td valign="top">
-      <h3>[Nama Developer]</h3>
-      <p>[Peran, contoh: Pengembang Website]</p>
+      <h3>Muhammad Alifudin</h3>
+      <p>Peran : Pengembang dan Pembuat Website</p>
       <p>
-        GitHub: <a href="https://github.com/username">github.com/username</a><br>
-        Email: <a href="mailto:email@contoh.com">email@contoh.com</a>
+        GitHub: <a href="https://github.com/Alifkece">github.com/Alifkece</a><br>
+        Email: <a href="ranialif16@gmail.com">ranialif16@gmail.com</a>
       </p>
     </td>
   </tr>
@@ -275,7 +275,7 @@ Semua rahasia hanya dipakai di server (folder `api/`) dan tidak pernah dikirim k
 
 | | |
 | --- | --- |
-| Email | halo@kopinusantara.id |
+| Email | kopinusantarasite@gmail.com |
 | WhatsApp | +62 851-2210-8079 |
 | Situs | https://www.kopi-nusantara.biz.id/ |
 
