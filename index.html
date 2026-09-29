@@ -79,7 +79,7 @@
     background: #29221B;
   }
   #loader.is-done{ opacity: 0; visibility: hidden; pointer-events: none; }
-  #loader .loader__logo{ height: 56px; width: auto; display: block; }
+  #loader .loader__logo{ height: clamp(56px, 7vw, 140px); width: auto; display: block; }
 </style>
 </head>
 <body>
@@ -101,7 +101,17 @@
   </div>
   <div class="loader__inner">
     <div class="loader__steam" aria-hidden="true"><span></span><span></span><span></span></div>
-    <img src="assets/images/logo.png" alt="Kopi Nusantara" class="loader__logo">
+    <div class="loader__scene">
+      <div class="loader__stage">
+        <i class="loader__ring loader__ring--a" aria-hidden="true"></i>
+        <i class="loader__ring loader__ring--b" aria-hidden="true"></i>
+        <div class="loader__card">
+          <div class="loader__float">
+            <img src="assets/images/logo.png" alt="Kopi Nusantara" class="loader__logo">
+          </div>
+        </div>
+      </div>
+    </div>
     <p class="loader__tag"><span>Cita Rasa Nusantara</span></p>
     <div class="loader__bar"><div class="loader__bar-fill" id="loaderBarFill"></div></div>
     <p class="loader__pct" id="loaderPct">0%</p>
