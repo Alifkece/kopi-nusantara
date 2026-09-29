@@ -84,7 +84,22 @@
       if (pct) pct.textContent = Math.round(progress) + '%';
     }
 
+    // Desktop only: the 3D logo scene leans toward the pointer.
+    var canTilt = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches && !prefersReducedMotion;
+    function onTilt(e) {
+      var x = e.clientX / window.innerWidth - 0.5;
+      var y = e.clientY / window.innerHeight - 0.5;
+      loader.style.setProperty('--ry', (x * 26).toFixed(2) + 'deg');
+      loader.style.setProperty('--rx', (-y * 18).toFixed(2) + 'deg');
+    }
+    if (canTilt) window.addEventListener('mousemove', onTilt, { passive: true });
+
     function finishLoader() {
+      if (canTilt) {
+        window.removeEventListener('mousemove', onTilt);
+        loader.style.setProperty('--ry', '0deg');
+        loader.style.setProperty('--rx', '0deg');
+      }
       if (fakeTimer) window.clearInterval(fakeTimer);
       setProgress(100);
       loader.classList.add('is-complete');
