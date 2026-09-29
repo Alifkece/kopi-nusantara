@@ -86,8 +86,23 @@
 
 <!-- ============ LOADING SCREEN ============ -->
 <div class="loader" id="loader" role="status" aria-live="polite">
+  <div class="loader__fx" aria-hidden="true">
+    <span style="--x:8%;--s:3px;--d:7s;--delay:0s;--drift:18px"></span>
+    <span style="--x:16%;--s:5px;--d:9s;--delay:1.6s;--drift:-22px"></span>
+    <span style="--x:25%;--s:3px;--d:8s;--delay:3.1s;--drift:14px"></span>
+    <span style="--x:34%;--s:4px;--d:10s;--delay:.8s;--drift:-16px"></span>
+    <span style="--x:43%;--s:3px;--d:7.5s;--delay:2.4s;--drift:20px"></span>
+    <span style="--x:52%;--s:6px;--d:11s;--delay:4.2s;--drift:-12px"></span>
+    <span style="--x:61%;--s:3px;--d:8.5s;--delay:1.1s;--drift:24px"></span>
+    <span style="--x:70%;--s:4px;--d:9.5s;--delay:3.6s;--drift:-20px"></span>
+    <span style="--x:78%;--s:3px;--d:7s;--delay:2s;--drift:16px"></span>
+    <span style="--x:86%;--s:5px;--d:10s;--delay:.4s;--drift:-18px"></span>
+    <span style="--x:93%;--s:3px;--d:8s;--delay:4.8s;--drift:12px"></span>
+  </div>
   <div class="loader__inner">
+    <div class="loader__steam" aria-hidden="true"><span></span><span></span><span></span></div>
     <img src="assets/images/logo.png" alt="Kopi Nusantara" class="loader__logo">
+    <p class="loader__tag"><span>Cita Rasa Nusantara</span></p>
     <div class="loader__bar"><div class="loader__bar-fill" id="loaderBarFill"></div></div>
     <p class="loader__pct" id="loaderPct">0%</p>
   </div>
