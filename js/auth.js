@@ -330,6 +330,55 @@ import {
     }, 1000);
   }
 
+  /* ---- Glass OTP animation (visual only; runs AFTER the server accepted the code) ---- */
+  var otpGlass = document.getElementById('otpGlass');
+  var otpGlassTitle = document.getElementById('otpGlassTitle');
+  var otpGlassSub = document.getElementById('otpGlassSub');
+  var otpAnimating = false;
+  var otpGlassTimers = [];
+  var otpGlassResetTimer = null;
+
+  function clearOtpGlassTimers() {
+    otpGlassTimers.forEach(function (t) { window.clearTimeout(t); });
+    otpGlassTimers = [];
+  }
+  function resetOtpGlass() {
+    clearOtpGlassTimers();
+    if (otpGlassResetTimer) { window.clearTimeout(otpGlassResetTimer); otpGlassResetTimer = null; }
+    otpAnimating = false;
+    if (!otpGlass) return;
+    otpGlass.classList.remove('is-active', 'is-success');
+    otpGlass.setAttribute('aria-hidden', 'true');
+    if (otpGlassTitle) otpGlassTitle.textContent = 'Verifying...';
+    if (otpGlassSub) otpGlassSub.textContent = 'Memeriksa kode keamanan Anda';
+  }
+  // Stops a running animation immediately, hides the overlay after the modal's own close fade.
+  function cancelOtpGlass() {
+    clearOtpGlassTimers();
+    otpAnimating = false;
+    if (!otpGlass || !otpGlass.classList.contains('is-active')) return;
+    if (otpGlassResetTimer) window.clearTimeout(otpGlassResetTimer);
+    otpGlassResetTimer = window.setTimeout(resetOtpGlass, 650);
+  }
+  function playOtpGlass(onDone) {
+    if (!otpGlass) { onDone(); return; }
+    var verifyMs = prefersReducedMotion ? 250 : 1400;
+    var holdMs = prefersReducedMotion ? 500 : 1500;
+    resetOtpGlass();
+    otpAnimating = true;
+    otpGlass.classList.add('is-active');
+    otpGlass.setAttribute('aria-hidden', 'false');
+    otpGlassTimers.push(window.setTimeout(function () {
+      if (otpGlassTitle) otpGlassTitle.textContent = 'Success';
+      if (otpGlassSub) otpGlassSub.textContent = 'Kode verifikasi berhasil dikonfirmasi';
+      otpGlass.classList.add('is-success');
+      otpGlassTimers.push(window.setTimeout(function () {
+        otpAnimating = false;
+        onDone();
+      }, holdMs));
+    }, verifyMs));
+  }
+
   function showOtpPanel(maskedEmail) {
     if (!authModal || !otpForm) return;
     if (authModalTitle) authModalTitle.textContent = 'Verifikasi Email';
@@ -341,6 +390,7 @@ import {
     if (registerForm) registerForm.hidden = true;
     if (otpMaskedEmailEl) otpMaskedEmailEl.textContent = maskedEmail || '';
     setFormError(otpError, '');
+    resetOtpGlass();
     otpBoxes.forEach(function (b) { b.value = ''; });
     otpForm.hidden = false;
     if (!authModal.classList.contains('is-open')) {
@@ -419,7 +469,7 @@ import {
   if (otpForm) {
     otpForm.addEventListener('submit', function (e) {
       e.preventDefault();
-      if (otpVerifyBtn.classList.contains('is-loading')) return;
+      if (otpAnimating || otpVerifyBtn.classList.contains('is-loading')) return;
       var code = otpBoxes.map(function (b) { return b.value; }).join('');
       if (!/^\d{6}$/.test(code)) {
         setFormError(otpError, 'Masukkan 6 digit kode.');
@@ -437,10 +487,14 @@ import {
           }
           var verifiedUser = otpPendingUser;
           otpVerificationState = { uid: verifiedUser.uid, verified: true };
-          hideOtpPanel();
-          showToast(otpSuccessMessage || 'Berhasil masuk.', 'success');
-          resolvePendingAfterAuth(verifiedUser);
-          closeAuthModal();
+          if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); // tutup keyboard mobile
+          playOtpGlass(function () {
+            if (!authModal || !authModal.classList.contains('is-open')) return; // ditutup manual saat animasi
+            hideOtpPanel();
+            showToast(otpSuccessMessage || 'Berhasil masuk.', 'success');
+            resolvePendingAfterAuth(verifiedUser);
+            closeAuthModal();
+          });
         })
         .catch(function () {
           setFormError(otpError, 'Terjadi kesalahan. Coba lagi.');
@@ -498,6 +552,7 @@ import {
     setFormError(registerError, '');
     if (loginForm) loginForm.reset();
     if (registerForm) registerForm.reset();
+    cancelOtpGlass();
     hideOtpPanel(); // menutup manual saat OTP = batal verifikasi, bukan menandai berhasil
     pendingAfterAuth = null; // menutup manual = batal, bukan "lanjutkan ke checkout"
   }
