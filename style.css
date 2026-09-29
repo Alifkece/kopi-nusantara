@@ -103,8 +103,84 @@ svg{ display: block; }
 }
 .loader.is-done{ opacity: 0; visibility: hidden; pointer-events: none; }
 .loader__inner{
-  display: flex; flex-direction: column; align-items: center; gap: 26px;
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 22px;
   padding: 0 24px;
+  transition: opacity .5s var(--ease), transform .6s var(--ease);
+}
+.loader.is-done .loader__inner{ opacity: 0; transform: translateY(-10px) scale(.97); }
+
+/* Ambient warm glow + soft vignette behind the content */
+.loader::before, .loader::after{
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+}
+.loader::before{
+  background: radial-gradient(ellipse 55% 45% at 50% 46%, rgba(107,74,50,.55) 0%, rgba(75,52,35,.28) 40%, transparent 72%);
+  animation: loaderGlow 4.5s ease-in-out infinite alternate;
+}
+.loader::after{
+  background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,.38) 100%);
+}
+@keyframes loaderGlow{
+  0%{ opacity: .55; transform: scale(.94); }
+  100%{ opacity: 1; transform: scale(1.06); }
+}
+
+/* Floating gold dust rising from the bottom */
+.loader__fx{ position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.loader__fx span{
+  position: absolute; left: var(--x); bottom: -12px;
+  width: var(--s); height: var(--s); border-radius: 50%;
+  background: radial-gradient(circle, #C9AD7C 0%, rgba(173,138,82,0) 72%);
+  opacity: 0;
+  animation: loaderRise var(--d) linear var(--delay) infinite;
+}
+@keyframes loaderRise{
+  0%{ transform: translate(0, 0); opacity: 0; }
+  15%{ opacity: .85; }
+  70%{ opacity: .5; }
+  100%{ transform: translate(var(--drift), -105vh); opacity: 0; }
+}
+
+/* Coffee steam curling up above the logo */
+.loader__steam{
+  position: relative; width: 44px; height: 34px; margin-bottom: -10px;
+}
+.loader__steam span{
+  position: absolute; bottom: 0; width: 6px; height: 28px; border-radius: 50%;
+  background: linear-gradient(to top, rgba(201,173,124,.55), rgba(201,173,124,0));
+  filter: blur(3px); opacity: 0;
+  animation: loaderSteam 2.6s ease-in-out infinite;
+}
+.loader__steam span:nth-child(1){ left: 8px;  animation-delay: 0s; }
+.loader__steam span:nth-child(2){ left: 19px; animation-delay: .8s; height: 34px; }
+.loader__steam span:nth-child(3){ left: 30px; animation-delay: 1.6s; }
+@keyframes loaderSteam{
+  0%{ transform: translateY(8px) scaleX(1); opacity: 0; }
+  30%{ opacity: .8; }
+  60%{ transform: translateY(-6px) translateX(4px) scaleX(1.5); opacity: .45; }
+  100%{ transform: translateY(-18px) translateX(-3px) scaleX(2); opacity: 0; }
+}
+
+/* Tagline with hairlines that draw in on both sides */
+.loader__tag{
+  display: flex; align-items: center; gap: 14px; margin: 0;
+  font-family: var(--f-body); font-size: 10.5px; font-weight: 500;
+  letter-spacing: .34em; text-transform: uppercase; white-space: nowrap;
+  color: var(--c-gold-soft);
+}
+.loader__tag span{ animation: loaderFadeUp 1s var(--ease) .35s both; }
+.loader__tag::before, .loader__tag::after{
+  content: ''; width: 34px; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--c-gold));
+  transform: scaleX(0); animation: loaderLine 1s var(--ease) .5s forwards;
+}
+.loader__tag::before{ transform-origin: right center; }
+.loader__tag::after{ transform-origin: left center; background: linear-gradient(270deg, transparent, var(--c-gold)); }
+@keyframes loaderLine{ to{ transform: scaleX(1); } }
+@keyframes loaderFadeUp{
+  from{ opacity: 0; transform: translateY(8px); }
+  to{ opacity: 1; transform: translateY(0); }
 }
 .loader__logo{
   height: 56px; width: auto; opacity: .95;
@@ -124,6 +200,11 @@ svg{ display: block; }
   background: repeating-linear-gradient(135deg, #4B3423 0 8px, #5A402B 0 16px);
   box-shadow: inset 0 0 0 1px rgba(201,173,124,.22), 0 0 18px rgba(173,138,82,.12);
   overflow: hidden;
+  animation: loaderFadeUp .9s var(--ease) .6s both;
+  transition: box-shadow .5s var(--ease);
+}
+.loader.is-complete .loader__bar{
+  box-shadow: inset 0 0 0 1px rgba(201,173,124,.5), 0 0 26px rgba(201,173,124,.4);
 }
 .loader__bar-fill{
   position: relative;
@@ -135,9 +216,19 @@ svg{ display: block; }
   font-family: var(--f-body); font-size: 11px; letter-spacing: .16em;
   color: var(--c-offwhite); opacity: .6;
   font-variant-numeric: tabular-nums;
+  transition: color .4s var(--ease), opacity .4s var(--ease);
+}
+.loader.is-complete .loader__pct{ color: var(--c-gold-soft); opacity: 1; }
+@media (max-width: 480px){
+  .loader__tag{ font-size: 9.5px; letter-spacing: .26em; gap: 10px; }
+  .loader__tag::before, .loader__tag::after{ width: 20px; }
 }
 @media (prefers-reduced-motion: reduce){
   .loader__logo{ animation: none; }
+  .loader::before{ animation: none; }
+  .loader__fx, .loader__steam{ display: none; }
+  .loader__tag span, .loader__bar{ animation: none; }
+  .loader__tag::before, .loader__tag::after{ animation: none; transform: scaleX(1); }
 }
 
 .grain-overlay{
