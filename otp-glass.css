@@ -1,0 +1,217 @@
+/* =========================================================
+   KOPI NUSANTARA — otp-glass.css
+   Glass OTP animation, shown only AFTER the server has accepted
+   the OTP (see js/auth.js, section 5c). Uses the existing design
+   tokens from style.css (:root). Green is used for success only.
+========================================================= */
+.otp-glass{
+  --og-green: #6DC79A;
+  --og-green-glow: rgba(109, 199, 154, .38);
+  position: absolute; inset: 0; z-index: 6;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(173,138,82,.20), transparent 60%),
+    rgba(24, 16, 10, .62);
+  backdrop-filter: blur(14px) saturate(1.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity .45s var(--ease), visibility 0s linear .45s;
+  font-family: var(--f-body);
+}
+.otp-glass.is-active{
+  opacity: 1; visibility: visible; pointer-events: auto;
+  transition: opacity .45s var(--ease), visibility 0s linear 0s;
+}
+
+.otp-glass__card{
+  position: relative; overflow: hidden;
+  width: min(360px, 100%);
+  max-height: 100%;
+  padding: 28px 22px 24px;
+  text-align: center;
+  color: var(--c-offwhite);
+  border-radius: 22px;
+  border: 1px solid rgba(201,173,124,.34);
+  background: linear-gradient(155deg, rgba(75,52,35,.46), rgba(41,34,27,.58));
+  box-shadow:
+    0 30px 80px rgba(10,6,3,.5),
+    0 0 60px rgba(173,138,82,.16),
+    inset 0 1px 0 rgba(251,248,243,.14);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  transform: translateY(14px) scale(.94);
+  transition: transform .6s var(--ease-spring), border-color .6s var(--ease), box-shadow .6s var(--ease);
+}
+.otp-glass.is-active .otp-glass__card{ transform: translateY(0) scale(1); }
+
+/* thin glass sheen + chamfered corner accents (echoes the reference) */
+.otp-glass__card::before{
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(115deg, rgba(251,248,243,.10) 0%, transparent 38%);
+}
+.otp-glass__card::after{
+  content: ''; position: absolute; right: -1px; bottom: -1px;
+  width: 44px; height: 44px; pointer-events: none;
+  border-top-left-radius: 18px;
+  border-top: 1px solid rgba(201,173,124,.4); border-left: 1px solid rgba(201,173,124,.4);
+  background: rgba(251,248,243,.05);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+/* soft green wash, success only */
+.otp-glass__wash{
+  position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(90% 70% at 50% 42%, var(--og-green-glow), transparent 70%);
+  transition: opacity .8s var(--ease);
+}
+
+.otp-glass__badge-icon{
+  position: relative; z-index: 1;
+  width: 46px; height: 46px; margin: 0 auto 14px;
+  display: grid; place-items: center;
+  border-radius: 14px;
+  color: var(--c-gold-soft);
+  border: 1px solid rgba(201,173,124,.45);
+  background: rgba(41,34,27,.55);
+  box-shadow: 0 0 22px rgba(173,138,82,.32);
+  animation: ogGlow 2.4s ease-in-out infinite;
+  transition: color .5s var(--ease), border-color .5s var(--ease), box-shadow .5s var(--ease);
+}
+.otp-glass__badge-icon svg{ width: 22px; height: 22px; }
+
+.otp-glass__title{
+  position: relative; z-index: 1;
+  margin: 0 0 6px; font-family: var(--f-display);
+  font-size: 30px; font-weight: 600; line-height: 1.1; color: var(--c-offwhite);
+}
+.otp-glass__sub{
+  position: relative; z-index: 1;
+  margin: 0; font-size: 13px; line-height: 1.5; color: rgba(246,238,225,.72);
+}
+
+/* central stage: spinning ring around a rounded square */
+.otp-glass__stage{
+  position: relative; z-index: 1;
+  width: 104px; height: 104px; margin: 22px auto 20px;
+  display: grid; place-items: center;
+}
+.otp-glass__ring{
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 2px solid rgba(201,173,124,.22);
+  border-top-color: var(--c-gold-soft);
+  box-shadow: 0 0 26px rgba(173,138,82,.22);
+  animation: ogSpin 1.15s linear infinite;
+  transition: border-color .5s var(--ease), box-shadow .5s var(--ease);
+}
+.otp-glass__box{
+  position: relative; width: 46px; height: 46px;
+  display: grid; place-items: center;
+  border-radius: 14px;
+  border: 2px solid rgba(201,173,124,.55);
+  background: rgba(24,16,10,.5);
+  transition: border-color .5s var(--ease), box-shadow .5s var(--ease), transform .6s var(--ease-spring);
+}
+.otp-glass__box::before{
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--c-gold-soft);
+  animation: ogPulse 1.15s ease-in-out infinite;
+}
+.otp-glass__check{
+  position: absolute; width: 26px; height: 26px; overflow: visible;
+}
+.otp-glass__check path{
+  fill: none; stroke: var(--og-green); stroke-width: 3.2;
+  stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 26; stroke-dashoffset: 26;
+}
+
+/* status pill */
+.otp-glass__status{
+  position: relative; z-index: 1;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 0 18px;
+  border-radius: var(--radius-pill);
+  font-size: 13.5px; font-weight: 700; letter-spacing: .02em;
+  color: var(--c-gold-soft);
+  border: 1px solid rgba(201,173,124,.32);
+  background: rgba(41,34,27,.5);
+  transition: color .5s var(--ease), background .5s var(--ease), border-color .5s var(--ease), box-shadow .5s var(--ease);
+}
+.otp-glass__status svg{ display: block; width: 16px; height: 16px; flex: none; }
+.otp-glass__status-text--done{ display: none; }
+
+/* ---------- SUCCESS ---------- */
+.otp-glass.is-success .otp-glass__card{
+  border-color: rgba(109,199,154,.42);
+  box-shadow: 0 30px 80px rgba(10,6,3,.5), 0 0 70px var(--og-green-glow), inset 0 1px 0 rgba(251,248,243,.14);
+}
+.otp-glass.is-success .otp-glass__wash{ opacity: 1; }
+.otp-glass.is-success .otp-glass__badge-icon{
+  color: var(--og-green); border-color: rgba(109,199,154,.55);
+  box-shadow: 0 0 24px var(--og-green-glow);
+  animation: none;
+}
+.otp-glass.is-success .otp-glass__ring{
+  animation: none; border-color: var(--og-green);
+  box-shadow: 0 0 34px var(--og-green-glow), inset 0 0 18px rgba(109,199,154,.14);
+}
+.otp-glass.is-success .otp-glass__box{
+  border-color: var(--og-green);
+  box-shadow: 0 0 22px var(--og-green-glow);
+  animation: ogPop .7s var(--ease-spring) both;
+}
+.otp-glass.is-success .otp-glass__box::before{ animation: none; opacity: 0; }
+.otp-glass.is-success .otp-glass__check path{ animation: ogDraw .5s .12s var(--ease) forwards; }
+.otp-glass.is-success .otp-glass__status{
+  color: #F2FBF6; border-color: rgba(109,199,154,.55);
+  background: linear-gradient(180deg, rgba(109,199,154,.42), rgba(72,150,110,.5));
+  box-shadow: 0 8px 26px var(--og-green-glow);
+}
+.otp-glass.is-success .otp-glass__status-text--busy{ display: none; }
+.otp-glass.is-success .otp-glass__status-text--done{ display: inline-flex; align-items: center; gap: 8px; animation: ogRise .5s var(--ease) both; }
+
+/* animated dots after "Verifying" */
+.otp-glass__dots span{ animation: ogDot 1.2s infinite both; }
+.otp-glass__dots span:nth-child(2){ animation-delay: .2s; }
+.otp-glass__dots span:nth-child(3){ animation-delay: .4s; }
+
+@keyframes ogSpin{ to{ transform: rotate(360deg); } }
+@keyframes ogPulse{ 0%,100%{ opacity: .35; transform: scale(.8); } 50%{ opacity: 1; transform: scale(1.15); } }
+@keyframes ogGlow{ 0%,100%{ box-shadow: 0 0 16px rgba(173,138,82,.26); } 50%{ box-shadow: 0 0 30px rgba(201,173,124,.5); } }
+@keyframes ogDraw{ to{ stroke-dashoffset: 0; } }
+@keyframes ogPop{ 0%{ transform: scale(.82); } 100%{ transform: scale(1); } }
+@keyframes ogRise{ from{ opacity: 0; transform: translateY(6px); } to{ opacity: 1; transform: translateY(0); } }
+@keyframes ogDot{ 0%,80%,100%{ opacity: .2; } 40%{ opacity: 1; } }
+
+/* ---------- DESKTOP: larger, roomier card (not a stretched mobile one) ---------- */
+@media (min-width: 861px){
+  .otp-glass__card{ width: 400px; padding: 38px 36px 32px; border-radius: 26px; }
+  .otp-glass__card::after{ width: 60px; height: 60px; }
+  .otp-glass__badge-icon{ width: 54px; height: 54px; border-radius: 16px; margin-bottom: 18px; }
+  .otp-glass__badge-icon svg{ width: 26px; height: 26px; }
+  .otp-glass__title{ font-size: 36px; }
+  .otp-glass__sub{ font-size: 14px; }
+  .otp-glass__stage{ width: 128px; height: 128px; margin: 28px auto 26px; }
+  .otp-glass__box{ width: 56px; height: 56px; border-radius: 16px; }
+  .otp-glass__check{ width: 32px; height: 32px; }
+  .otp-glass__status{ min-height: 48px; font-size: 14.5px; }
+}
+
+/* ---------- SMALL / SHORT SCREENS (mobile, keyboard-safe) ---------- */
+@media (max-width: 860px){
+  .otp-glass{ padding: 14px; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+  .otp-glass__card{ width: min(340px, 100%); }
+}
+@media (max-height: 560px){
+  .otp-glass__card{ padding: 18px 18px 16px; }
+  .otp-glass__badge-icon{ width: 38px; height: 38px; margin-bottom: 8px; }
+  .otp-glass__title{ font-size: 24px; }
+  .otp-glass__stage{ width: 80px; height: 80px; margin: 12px auto; }
+  .otp-glass__box{ width: 36px; height: 36px; }
+  .otp-glass__status{ min-height: 38px; }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .otp-glass, .otp-glass__card{ transition-duration: .01ms !important; }
+  .otp-glass__ring, .otp-glass__box::before, .otp-glass__badge-icon, .otp-glass__dots span{ animation: none !important; }
+  .otp-glass__check path{ stroke-dashoffset: 0 !important; animation: none !important; }
+}
