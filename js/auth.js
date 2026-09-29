@@ -334,6 +334,8 @@ import {
   var otpGlass = document.getElementById('otpGlass');
   var otpGlassTitle = document.getElementById('otpGlassTitle');
   var otpGlassSub = document.getElementById('otpGlassSub');
+  var otpGlassStage = document.getElementById('otpGlassStage');
+  var otpGlassOrbit = document.getElementById('otpGlassOrbit');
   var otpAnimating = false;
   var otpGlassTimers = [];
   var otpGlassResetTimer = null;
@@ -342,41 +344,90 @@ import {
     otpGlassTimers.forEach(function (t) { window.clearTimeout(t); });
     otpGlassTimers = [];
   }
+  function otpGlassAfter(ms, fn) { otpGlassTimers.push(window.setTimeout(fn, ms)); }
+  function swapGlassText(el, html) {
+    if (!el) return;
+    el.classList.remove('is-swap');
+    el.classList.add('is-out'); // memudar keluar dulu, baru teks baru masuk
+    otpGlassAfter(380, function () {
+      el.innerHTML = html; // string konstan dari kode ini, bukan input pengguna
+      el.classList.remove('is-out'); void el.offsetWidth; el.classList.add('is-swap');
+    });
+  }
   function resetOtpGlass() {
     clearOtpGlassTimers();
     if (otpGlassResetTimer) { window.clearTimeout(otpGlassResetTimer); otpGlassResetTimer = null; }
     otpAnimating = false;
     if (!otpGlass) return;
-    otpGlass.classList.remove('is-active', 'is-success');
+    otpGlass.classList.remove('is-active', 'is-merged', 'is-success');
     otpGlass.setAttribute('aria-hidden', 'true');
-    if (otpGlassTitle) otpGlassTitle.textContent = 'Verifying...';
-    if (otpGlassSub) otpGlassSub.textContent = 'Memeriksa kode keamanan Anda';
+    if (otpGlassOrbit) { otpGlassOrbit.classList.remove('is-spinning'); otpGlassOrbit.innerHTML = ''; }
+    if (otpGlassTitle) { otpGlassTitle.classList.remove('is-swap', 'is-out'); otpGlassTitle.textContent = 'Verifying...'; }
+    if (otpGlassSub) { otpGlassSub.classList.remove('is-swap', 'is-out'); otpGlassSub.textContent = 'Memeriksa kode keamanan Anda'; }
   }
-  // Stops a running animation immediately, hides the overlay after the modal's own close fade.
+  // Menghentikan animasi seketika; overlay disembunyikan setelah fade tutup modal selesai.
   function cancelOtpGlass() {
     clearOtpGlassTimers();
     otpAnimating = false;
     if (!otpGlass || !otpGlass.classList.contains('is-active')) return;
     if (otpGlassResetTimer) window.clearTimeout(otpGlassResetTimer);
-    otpGlassResetTimer = window.setTimeout(resetOtpGlass, 650);
+    otpGlassResetTimer = window.setTimeout(resetOtpGlass, 700);
   }
-  function playOtpGlass(onDone) {
-    if (!otpGlass) { onDone(); return; }
-    var verifyMs = prefersReducedMotion ? 250 : 1400;
-    var holdMs = prefersReducedMotion ? 500 : 1500;
+  // Posisi tiap kotak digit: baris -> lingkaran -> pusat (transform list sama supaya transisinya mulus).
+  function layoutGlassDigits(mode) {
+    if (!otpGlassOrbit || !otpGlassStage) return;
+    var digits = otpGlassOrbit.children, n = digits.length;
+    if (!n) return;
+    var w = otpGlassStage.clientWidth, h = otpGlassStage.clientHeight;
+    var size = digits[0].offsetWidth || 40;
+    var step = Math.min(size + 8, (w - 8) / n);
+    var radius = Math.max(size, Math.min(w, h) / 2 - size * 0.7);
+    for (var i = 0; i < n; i++) {
+      var x = 0, y = 0, rot = 0, scale = 1, opacity = 1;
+      var a = (i / n) * 2 * Math.PI;
+      if (mode === 'row') { x = (i - (n - 1) / 2) * step; }
+      else if (mode === 'circle') { x = Math.sin(a) * radius; y = -Math.cos(a) * radius; rot = (a * 180) / Math.PI; }
+      else { rot = (a * 180) / Math.PI; scale = 0.3; opacity = 0; }
+      digits[i].style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) rotate(' + rot.toFixed(1) + 'deg) scale(' + scale + ')';
+      if (mode === 'merge') digits[i].style.opacity = opacity;
+    }
+  }
+  // Urutan (mengikuti video referensi): kotak digit muncul -> berputar -> menyatu -> centang -> lanjut.
+  function playOtpGlass(code, onDone) {
+    if (!otpGlass || !otpGlassOrbit) { onDone(); return; }
+    var slow = prefersReducedMotion ? 0.12 : 1;
     resetOtpGlass();
     otpAnimating = true;
+    String(code).split('').forEach(function (ch, idx) {
+      var d = document.createElement('span');
+      d.className = 'otp-glass__digit';
+      d.style.setProperty('--i', idx);
+      d.textContent = ch;
+      otpGlassOrbit.appendChild(d);
+    });
+    layoutGlassDigits('row');
     otpGlass.classList.add('is-active');
     otpGlass.setAttribute('aria-hidden', 'false');
-    otpGlassTimers.push(window.setTimeout(function () {
-      if (otpGlassTitle) otpGlassTitle.textContent = 'Success';
-      if (otpGlassSub) otpGlassSub.textContent = 'Kode verifikasi berhasil dikonfirmasi';
+
+    otpGlassAfter(1300 * slow, function () {           // 1. digit membentuk lingkaran + berputar
+      layoutGlassDigits('circle');
+      otpGlassOrbit.classList.add('is-spinning');
+    });
+    otpGlassAfter(3900 * slow, function () {           // 2. digit menyatu ke pusat
+      layoutGlassDigits('merge');
+    });
+    otpGlassAfter(4600 * slow, function () {           // 3. kotak + cincin muncul
+      otpGlass.classList.add('is-merged');
+    });
+    otpGlassAfter(5200 * slow, function () {           // 4. sukses: hijau, centang, teks berubah
       otpGlass.classList.add('is-success');
-      otpGlassTimers.push(window.setTimeout(function () {
-        otpAnimating = false;
-        onDone();
-      }, holdMs));
-    }, verifyMs));
+      swapGlassText(otpGlassTitle, 'Verified <span class="otp-glass__accent">Successfully</span>');
+      swapGlassText(otpGlassSub, 'Kode verifikasi berhasil dikonfirmasi');
+    });
+    otpGlassAfter(7400 * slow, function () {           // 5. tahan sejenak, lalu lanjut flow existing
+      otpAnimating = false;
+      onDone();
+    });
   }
 
   function showOtpPanel(maskedEmail) {
@@ -488,7 +539,7 @@ import {
           var verifiedUser = otpPendingUser;
           otpVerificationState = { uid: verifiedUser.uid, verified: true };
           if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); // tutup keyboard mobile
-          playOtpGlass(function () {
+          playOtpGlass(code, function () {
             if (!authModal || !authModal.classList.contains('is-open')) return; // ditutup manual saat animasi
             hideOtpPanel();
             showToast(otpSuccessMessage || 'Berhasil masuk.', 'success');
@@ -513,6 +564,84 @@ import {
       });
     });
   }
+
+  /* ---- Tempel kode OTP dari clipboard (benar-benar membaca clipboard perangkat) ---- */
+  var otpPasteBtn = document.getElementById('otpPasteBtn');
+  var otpPasteLabel = document.getElementById('otpPasteLabel');
+  var otpPasteLabelTimer = null;
+
+  function flashPasteLabel(text) {
+    if (!otpPasteLabel) return;
+    otpPasteLabel.textContent = text;
+    if (otpPasteLabelTimer) window.clearTimeout(otpPasteLabelTimer);
+    otpPasteLabelTimer = window.setTimeout(function () { otpPasteLabel.textContent = 'Tempel kode dari clipboard'; }, 1800);
+  }
+  // Ambil kode 6 digit dari teks clipboard: utamakan angka 6 digit yang berdiri sendiri
+  // (mis. "Kode Anda: 123456"), lalu cadangan: semua angka jika tepat 6 digit.
+  function extractOtpFromText(text) {
+    var t = String(text || '');
+    var m = t.match(/(^|\D)(\d{6})(?!\d)/);
+    if (m) return m[2];
+    var digits = t.replace(/\D/g, '');
+    return digits.length === 6 ? digits : '';
+  }
+  function fillOtpBoxes(code) {
+    otpBoxes.forEach(function (b, i) {
+      b.value = code[i] || '';
+      b.classList.remove('is-pasted'); void b.offsetWidth; b.classList.add('is-pasted');
+    });
+    if (otpVerifyBtn) otpVerifyBtn.focus();
+  }
+  if (otpPasteBtn) {
+    otpPasteBtn.addEventListener('click', function () {
+      setFormError(otpError, '');
+      var manualHint = 'Tidak bisa membaca clipboard. Izinkan akses clipboard, atau tempel manual di kotak kode.';
+      if (!navigator.clipboard || typeof navigator.clipboard.readText !== 'function') {
+        setFormError(otpError, manualHint);
+        if (otpBoxes[0]) otpBoxes[0].focus();
+        return;
+      }
+      otpPasteBtn.disabled = true;
+      navigator.clipboard.readText().then(function (text) {
+        var code = extractOtpFromText(text);
+        if (!code) {
+          setFormError(otpError, 'Clipboard tidak berisi kode 6 digit. Salin kode dari email dulu.');
+          return;
+        }
+        fillOtpBoxes(code);
+        flashPasteLabel('Kode tertempel');
+      }).catch(function () {
+        setFormError(otpError, manualHint);
+        if (otpBoxes[0]) otpBoxes[0].focus();
+      }).then(function () {
+        otpPasteBtn.disabled = false;
+      });
+    });
+  }
+
+  /* ---- Tampilkan / sembunyikan password (ikon mata) ---- */
+  var passToggles = Array.prototype.slice.call(document.querySelectorAll('[data-pass-toggle]'));
+  function setPassVisible(btn, visible) {
+    var input = btn.parentNode && btn.parentNode.querySelector('input');
+    if (!input) return;
+    input.type = visible ? 'text' : 'password';
+    btn.classList.toggle('is-visible', visible);
+    btn.setAttribute('aria-pressed', visible ? 'true' : 'false');
+    btn.setAttribute('aria-label', visible ? 'Sembunyikan password' : 'Tampilkan password');
+  }
+  passToggles.forEach(function (btn) {
+    // cegah tombol mencuri fokus dari input (keyboard mobile tetap terbuka)
+    btn.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    btn.addEventListener('click', function () {
+      var input = btn.parentNode.querySelector('input');
+      if (!input) return;
+      var start = input.selectionStart, end = input.selectionEnd;
+      setPassVisible(btn, input.type === 'password');
+      input.focus();
+      try { input.setSelectionRange(start, end); } catch (err) { /* abaikan */ }
+    });
+  });
+  function hideAllPasswords() { passToggles.forEach(function (b) { setPassVisible(b, false); }); }
 
   // Set by window.KopiAuth.requireAuth() when checkout is what triggered
   // the auth screen. Resolved (and cleared) once login/register succeeds;
@@ -553,6 +682,7 @@ import {
     if (loginForm) loginForm.reset();
     if (registerForm) registerForm.reset();
     cancelOtpGlass();
+    hideAllPasswords();
     hideOtpPanel(); // menutup manual saat OTP = batal verifikasi, bukan menandai berhasil
     pendingAfterAuth = null; // menutup manual = batal, bukan "lanjutkan ke checkout"
   }
