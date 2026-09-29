@@ -873,7 +873,10 @@
           </label>
           <label class="auth-field">
             <span>Password</span>
-            <input type="password" id="loginPassword" required autocomplete="current-password" placeholder="Minimal 6 karakter">
+            <span class="auth-pass">
+              <input type="password" class="auth-pass__input" id="loginPassword" required autocomplete="current-password" placeholder="Minimal 6 karakter">
+              <button type="button" class="auth-pass__toggle" aria-label="Tampilkan password" aria-pressed="false" data-pass-toggle><svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></svg></button>
+            </span>
           </label>
           <p class="auth-form__error" id="loginError" hidden></p>
           <button type="submit" class="btn btn--espresso auth-submit" id="loginSubmitBtn">
@@ -893,11 +896,17 @@
           </label>
           <label class="auth-field">
             <span>Password</span>
-            <input type="password" id="registerPassword" required autocomplete="new-password" placeholder="Minimal 6 karakter">
+            <span class="auth-pass">
+              <input type="password" class="auth-pass__input" id="registerPassword" required autocomplete="new-password" placeholder="Minimal 6 karakter">
+              <button type="button" class="auth-pass__toggle" aria-label="Tampilkan password" aria-pressed="false" data-pass-toggle><svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></svg></button>
+            </span>
           </label>
           <label class="auth-field">
             <span>Konfirmasi Password</span>
-            <input type="password" id="registerConfirmPassword" required autocomplete="new-password" placeholder="Ulangi password">
+            <span class="auth-pass">
+              <input type="password" class="auth-pass__input" id="registerConfirmPassword" required autocomplete="new-password" placeholder="Ulangi password">
+              <button type="button" class="auth-pass__toggle" aria-label="Tampilkan password" aria-pressed="false" data-pass-toggle><svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></svg></button>
+            </span>
           </label>
           <p class="auth-form__error" id="registerError" hidden></p>
           <button type="submit" class="btn btn--espresso auth-submit" id="registerSubmitBtn">
@@ -917,6 +926,7 @@
             <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="1" class="otp-box" aria-label="Digit 5">
             <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="1" class="otp-box" aria-label="Digit 6">
           </div>
+          <button type="button" class="otp-paste" id="otpPasteBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></svg><span id="otpPasteLabel">Tempel kode dari clipboard</span></button>
           <p class="auth-form__error" id="otpError" hidden></p>
           <button type="submit" class="btn btn--espresso auth-submit" id="otpVerifyBtn">
             <span class="auth-submit__label">Verifikasi</span>
@@ -926,7 +936,7 @@
         </form>
       </div>
 
-      <!-- Glass OTP animation: shown only after the server accepts the OTP (js/auth.js) -->
+      <!-- Glass OTP animation: hanya tampil setelah server menerima OTP (js/auth.js) -->
       <div class="otp-glass" id="otpGlass" aria-hidden="true">
         <div class="otp-glass__card" role="status" aria-live="polite">
           <div class="otp-glass__wash"></div>
@@ -935,11 +945,12 @@
           </div>
           <h4 class="otp-glass__title" id="otpGlassTitle">Verifying...</h4>
           <p class="otp-glass__sub" id="otpGlassSub">Memeriksa kode keamanan Anda</p>
-          <div class="otp-glass__stage" aria-hidden="true">
+          <div class="otp-glass__stage" id="otpGlassStage" aria-hidden="true">
             <div class="otp-glass__ring"></div>
             <div class="otp-glass__box">
               <svg class="otp-glass__check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
             </div>
+            <div class="otp-glass__orbit" id="otpGlassOrbit"></div>
           </div>
           <div class="otp-glass__status">
             <span class="otp-glass__status-text otp-glass__status-text--busy">Verifying<span class="otp-glass__dots"><span>.</span><span>.</span><span>.</span></span></span>
