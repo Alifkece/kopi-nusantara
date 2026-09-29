@@ -75,6 +75,8 @@
     var progress = 0;
     var hidden = false;
     var fakeTimer = null;
+    var MIN_SHOW = 2800; // minimum time the loader stays visible (ms)
+    var startTime = Date.now();
 
     function setProgress(p) {
       progress = Math.min(p, 100);
@@ -82,11 +84,10 @@
       if (pct) pct.textContent = Math.round(progress) + '%';
     }
 
-    function hideLoader() {
-      if (hidden) return;
-      hidden = true;
+    function finishLoader() {
       if (fakeTimer) window.clearInterval(fakeTimer);
       setProgress(100);
+      loader.classList.add('is-complete');
       window.setTimeout(function () {
         loader.classList.add('is-done');
         unlockBodyScroll();
@@ -94,12 +95,27 @@
           navbarEl.classList.remove('is-entering');
           navbarEl.classList.add('is-entered');
         }
-      }, 200);
+      }, 450);
     }
 
+    function hideLoader() {
+      if (hidden) return;
+      hidden = true;
+      // (progress keeps animating until finishLoader runs)
+      // Even if the page is ready instantly, keep the loader up for MIN_SHOW.
+      window.setTimeout(finishLoader, Math.max(0, MIN_SHOW - (Date.now() - startTime)));
+    }
+
+    // Time-based progress: eases toward ~90% over MIN_SHOW, then creeps slowly
+    // (never reaching 100% until the page is actually ready).
     fakeTimer = window.setInterval(function () {
-      setProgress(progress + (100 - progress) * 0.12);
-    }, 120);
+      var t = Math.min((Date.now() - startTime) / MIN_SHOW, 1);
+      if (t < 1) {
+        setProgress(Math.max(progress, 90 * (1 - Math.pow(1 - t, 2))));
+      } else {
+        setProgress(progress + (97 - progress) * 0.03);
+      }
+    }, 60);
 
     window.addEventListener('load', hideLoader);
     window.setTimeout(hideLoader, 4000); // failsafe: never stuck
