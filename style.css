@@ -114,30 +114,22 @@ svg{ display: block; }
   0%, 100%{ opacity: .72; transform: scale(1); }
   50%{ opacity: 1; transform: scale(1.05); }
 }
+/* Progress bar — striped pill loader (track + filling stripes).
+   Width of .loader__bar-fill is driven by script.js (real progress),
+   so the fill grows from 0% to 100% exactly like the reference
+   `background-size: 0% -> 100%` animation. */
 .loader__bar{
   position: relative;
-  width: 240px; height: 4px; border-radius: 4px;
-  background: rgba(251,248,243,.14);
-  box-shadow: inset 0 0 0 1px rgba(251,248,243,.06);
+  width: 200px; height: 14px; border-radius: 20px;
+  background: repeating-linear-gradient(135deg, #4B3423 0 8px, #5A402B 0 16px);
+  box-shadow: inset 0 0 0 1px rgba(201,173,124,.22), 0 0 18px rgba(173,138,82,.12);
   overflow: hidden;
 }
 .loader__bar-fill{
   position: relative;
-  height: 100%; width: 0%; border-radius: 4px;
-  background: linear-gradient(90deg, var(--c-gold), var(--c-gold-soft));
-  box-shadow: 0 0 14px rgba(173,138,82,.65);
+  height: 100%; width: 0%; border-radius: 20px;
+  background: repeating-linear-gradient(135deg, #AD8A52 0 8px, #C9AD7C 0 16px);
   transition: width .35s cubic-bezier(.22,.61,.22,1);
-  overflow: hidden;
-}
-.loader__bar-fill::after{
-  content: '';
-  position: absolute; inset: 0;
-  background: linear-gradient(115deg, transparent 25%, rgba(255,255,255,.65) 50%, transparent 75%);
-  transform: translateX(-100%);
-  animation: loaderSweep 1.3s ease-in-out infinite;
-}
-@keyframes loaderSweep{
-  100%{ transform: translateX(100%); }
 }
 .loader__pct{
   font-family: var(--f-body); font-size: 11px; letter-spacing: .16em;
@@ -146,7 +138,6 @@ svg{ display: block; }
 }
 @media (prefers-reduced-motion: reduce){
   .loader__logo{ animation: none; }
-  .loader__bar-fill::after{ animation: none; display: none; }
 }
 
 .grain-overlay{
