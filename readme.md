@@ -261,7 +261,7 @@ Semua rahasia hanya dipakai di server (folder `api/`) dan tidak pernah dikirim k
       <img src="assets/developer/developer.jpg" alt="Foto developer" width="180">
     </td>
     <td valign="top">
-      <h3>Muhammad Alifudin</h3>
+      <h3>H. Muhammad Alifudin, S.Kom.</h3>
       <p>Peran : Pengembang dan Pembuat Website</p>
       <p>
         GitHub: <a href="https://github.com/Alifkece">github.com/Alifkece</a><br>
