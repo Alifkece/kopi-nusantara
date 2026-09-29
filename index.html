@@ -1,865 +1,964 @@
-/* =========================================================
-   KOPI NUSANTARA — js/auth.js
-   -----------------------------------------------------------
-   Firebase Authentication (Google + Email/Password), Gmail OTP
-   verification (server-side, api/send-otp.js + api/verify-otp.js +
-   api/check-verified.js), and the Firestore `users/{uid}` profile
-   document.
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Kopi Nusantara — Rasa Nusantara, Dalam Setiap Seduhan</title>
+<meta name="description" content="Biji kopi pilihan dari berbagai daerah Indonesia — dipilih dengan cermat, disangrai dengan perhatian, dan dikirim untuk menemani setiap momen.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://www.kopi-nusantara.biz.id/">
 
-   Firebase Auth success alone is NEVER treated as "logged in" for
-   ANY provider (Email/Password, Register, Google): the user must
-   also pass server-verified Gmail OTP before window.KopiAuth
-   considers them authenticated. See window.KopiAuth below.
+<!-- Favicon (menggunakan logo existing) -->
+<link rel="icon" type="image/png" href="assets/images/logo.png">
+<link rel="apple-touch-icon" href="assets/images/logo.png">
 
-   This module only touches auth-related DOM (account menu,
-   auth modal, toasts). It never re-initializes Firebase —
-   the app/auth/db instances come from js/firebase-init.js —
-   and it never touches product/search/cart/modal logic from
-   script.js.
-========================================================= */
-import { auth, db } from './firebase-init.js';
-import {
-  GoogleAuthProvider,
-  signInWithPopup,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  updateProfile,
-  signOut,
-  onAuthStateChanged
-} from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js';
-import {
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp
-} from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Kopi Nusantara">
+<meta property="og:locale" content="id_ID">
+<meta property="og:url" content="https://www.kopi-nusantara.biz.id/">
+<meta property="og:title" content="Kopi Nusantara — Rasa Nusantara, Dalam Setiap Seduhan">
+<meta property="og:description" content="Biji kopi pilihan dari berbagai daerah Indonesia — dipilih dengan cermat, disangrai dengan perhatian, dan dikirim untuk menemani setiap momen.">
+<meta property="og:image" content="https://www.kopi-nusantara.biz.id/assets/images/hero-03.jpg">
+<meta property="og:image:width" content="1600">
+<meta property="og:image:height" content="900">
+<meta property="og:image:alt" content="Kopi Nusantara — biji kopi pilihan Nusantara">
 
-(function () {
-  'use strict';
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Kopi Nusantara — Rasa Nusantara, Dalam Setiap Seduhan">
+<meta name="twitter:description" content="Biji kopi pilihan dari berbagai daerah Indonesia — dipilih dengan cermat, disangrai dengan perhatian, dan dikirim untuk menemani setiap momen.">
+<meta name="twitter:image" content="https://www.kopi-nusantara.biz.id/assets/images/hero-03.jpg">
 
-  var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var GMAIL_DOMAIN_RE = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
-
-  /* =======================================================
-     0. TOAST NOTIFICATIONS (replaces alert())
-  ======================================================= */
-  var toastStack = document.getElementById('toastStack');
-  function showToast(message, type) {
-    if (!toastStack) return;
-    var toast = document.createElement('div');
-    toast.className = 'toast toast--' + (type || 'info');
-    toast.setAttribute('role', 'status');
-    toast.textContent = message;
-    toastStack.appendChild(toast);
-    window.requestAnimationFrame(function () { toast.classList.add('is-visible'); });
-    window.setTimeout(function () {
-      toast.classList.remove('is-visible');
-      window.setTimeout(function () {
-        if (toast.parentNode) toast.parentNode.removeChild(toast);
-      }, 350);
-    }, 4200);
+<!-- Structured Data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Store",
+  "name": "Kopi Nusantara",
+  "url": "https://www.kopi-nusantara.biz.id/",
+  "image": "https://www.kopi-nusantara.biz.id/assets/images/logo.png",
+  "email": "kopinusantarasite@gmail.com",
+  "telephone": "+6285122108079",
+  "address": {
+    "@type": "PostalAddress",
+    "addressLocality": "Bantargebang, Bekasi",
+    "addressRegion": "Jawa Barat",
+    "addressCountry": "ID"
+  },
+  "geo": {
+    "@type": "GeoCoordinates",
+    "latitude": -6.309000,
+    "longitude": 106.994600
   }
-  // Dipakai juga oleh script.js (cart/checkout) — satu sistem notifikasi
-  // untuk seluruh situs, bukan alert() atau toast kedua yang terpisah.
-  window.KopiToast = showToast;
+}
+</script>
 
-  /* =======================================================
-     1. FRIENDLY ERROR MESSAGES
-  ======================================================= */
-  var ERROR_MESSAGES = {
-    'auth/invalid-credential': 'Email atau password salah.',
-    'auth/wrong-password': 'Email atau password salah.',
-    'auth/user-not-found': 'Email atau password salah.',
-    'auth/email-already-in-use': 'Email ini sudah terdaftar.',
-    'auth/weak-password': 'Password terlalu lemah, gunakan minimal 6 karakter.',
-    'auth/invalid-email': 'Format email tidak valid.',
-    'auth/popup-closed-by-user': 'Login Google dibatalkan.',
-    'auth/cancelled-popup-request': 'Login Google dibatalkan.',
-    'auth/popup-blocked': 'Popup Google diblokir browser. Izinkan popup lalu coba lagi.',
-    'auth/network-request-failed': 'Koneksi bermasalah. Periksa internet Anda dan coba lagi.',
-    'auth/too-many-requests': 'Terlalu banyak percobaan. Coba lagi beberapa saat lagi.',
-    'auth/invalid-api-key': 'Konfigurasi Firebase (API key) tidak valid. Cek js/firebase-init.js.',
-    'auth/api-key-not-valid.-please-pass-a-valid-api-key.': 'Konfigurasi Firebase (API key) tidak valid. Cek js/firebase-init.js.',
-    'auth/unauthorized-domain': 'Domain ini belum diizinkan di Firebase Console (Authentication → Settings → Authorized domains).',
-    'auth/operation-not-allowed': 'Metode login ini belum diaktifkan di Firebase Console (Authentication → Sign-in method).',
-    'auth/configuration-not-found': 'Metode login ini belum diaktifkan di Firebase Console (Authentication → Sign-in method).'
-  };
-  function friendlyError(err) {
-    var code = err && err.code;
-    console.error('Firebase auth error:', err);
-    return (code && ERROR_MESSAGES[code]) || ('Terjadi kesalahan' + (code ? ' (' + code + ')' : '') + '. Silakan coba lagi.');
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="otp-glass.css">
+<style>
+  /* ============================================================
+     CRITICAL LOADER CSS — inlined on purpose.
+     This duplicates the essential geometry from style.css using
+     an ID selector (#loader), which always wins over the .loader
+     class rule in style.css regardless of load order or caching.
+     If the external stylesheet is ever stale/slow/blocked, the
+     loading screen still renders full-screen and correctly sized
+     instead of falling back to normal document flow.
+     ============================================================ */
+  #loader{
+    position: fixed;
+    inset: 0;
+    z-index: 999999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #29221B;
   }
+  #loader.is-done{ opacity: 0; visibility: hidden; pointer-events: none; }
+  #loader .loader__logo{ height: clamp(56px, 7vw, 140px); width: auto; display: block; }
+</style>
+</head>
+<body>
 
-  /* =======================================================
-     2. BUTTON LOADING STATE
-  ======================================================= */
-  function setButtonLoading(btn, isLoading) {
-    if (!btn) return;
-    btn.disabled = isLoading;
-    btn.classList.toggle('is-loading', isLoading);
-  }
+<!-- ============ LOADING SCREEN ============ -->
+<div class="loader" id="loader" role="status" aria-live="polite">
+  <div class="loader__fx" aria-hidden="true">
+    <span style="--x:8%;--s:3px;--d:7s;--delay:0s;--drift:18px"></span>
+    <span style="--x:16%;--s:5px;--d:9s;--delay:1.6s;--drift:-22px"></span>
+    <span style="--x:25%;--s:3px;--d:8s;--delay:3.1s;--drift:14px"></span>
+    <span style="--x:34%;--s:4px;--d:10s;--delay:.8s;--drift:-16px"></span>
+    <span style="--x:43%;--s:3px;--d:7.5s;--delay:2.4s;--drift:20px"></span>
+    <span style="--x:52%;--s:6px;--d:11s;--delay:4.2s;--drift:-12px"></span>
+    <span style="--x:61%;--s:3px;--d:8.5s;--delay:1.1s;--drift:24px"></span>
+    <span style="--x:70%;--s:4px;--d:9.5s;--delay:3.6s;--drift:-20px"></span>
+    <span style="--x:78%;--s:3px;--d:7s;--delay:2s;--drift:16px"></span>
+    <span style="--x:86%;--s:5px;--d:10s;--delay:.4s;--drift:-18px"></span>
+    <span style="--x:93%;--s:3px;--d:8s;--delay:4.8s;--drift:12px"></span>
+  </div>
+  <div class="loader__inner">
+    <div class="loader__steam" aria-hidden="true"><span></span><span></span><span></span></div>
+    <div class="loader__scene">
+      <div class="loader__stage">
+        <i class="loader__ring loader__ring--a" aria-hidden="true"></i>
+        <i class="loader__ring loader__ring--b" aria-hidden="true"></i>
+        <div class="loader__card">
+          <div class="loader__float">
+            <img src="assets/images/logo.png" alt="Kopi Nusantara" class="loader__logo">
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="loader__tag"><span>Cita Rasa Nusantara</span></p>
+    <div class="loader__bar"><div class="loader__bar-fill" id="loaderBarFill"></div></div>
+    <p class="loader__pct" id="loaderPct">0%</p>
+  </div>
+</div>
 
-  /* =======================================================
-     3. FIRESTORE USER PROFILE
-     Creates users/{uid} on first sign-in, updates it (without
-     wiping existing fields) on subsequent sign-ins. Never
-     stores a password.
-  ======================================================= */
-  function ensureUserDocument(user, provider) {
-    var ref = doc(db, 'users', user.uid);
-    return getDoc(ref).then(function (snap) {
-      var base = {
-        uid: user.uid,
-        name: user.displayName || '',
-        email: user.email || '',
-        photoURL: user.photoURL || '',
-        provider: provider,
-        updatedAt: serverTimestamp()
-      };
-      if (!snap.exists()) {
-        base.createdAt = serverTimestamp();
-      }
-      // merge: true keeps any existing fields intact and only touches these.
-      return setDoc(ref, base, { merge: true });
-    });
-  }
+<div class="grain-overlay" aria-hidden="true"></div>
+<div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
 
-  /* =======================================================
-     4. ACCOUNT MENU (navbar icon + dropdown)
-  ======================================================= */
-  var accountMenu = document.getElementById('accountMenu');
-  var accountBtn = document.getElementById('accountBtn');
-  var accountDropdown = document.getElementById('accountDropdown');
-  var accountGuestView = document.getElementById('accountGuestView');
-  var accountUserView = document.getElementById('accountUserView');
-  var accountAvatarThumb = document.getElementById('accountAvatarThumb');
-  var accountAvatarImg = document.getElementById('accountAvatarImg');
-  var accountNameText = document.getElementById('accountNameText');
-  var accountEmailText = document.getElementById('accountEmailText');
-  var openAuthModalBtn = document.getElementById('openAuthModalBtn');
-  var logoutBtn = document.getElementById('logoutBtn');
+<!-- ============ NAVBAR ============ -->
+<header class="navbar" id="navbar">
+  <div class="navbar__inner">
+    <button class="hamburger" id="hamburger" type="button" aria-label="Buka menu" aria-expanded="false" aria-controls="mobileMenu">
+      <span class="hamburger__bars"><i></i><i></i><i></i></span>
+      <em>Menu</em>
+    </button>
 
-  function isDropdownOpen() {
-    return !!(accountDropdown && accountDropdown.classList.contains('is-open'));
-  }
-  function openAccountDropdown() {
-    if (!accountDropdown) return;
-    accountDropdown.classList.add('is-open');
-    accountDropdown.setAttribute('aria-hidden', 'false');
-    if (accountBtn) accountBtn.setAttribute('aria-expanded', 'true');
-  }
-  function closeAccountDropdown() {
-    if (!accountDropdown) return;
-    accountDropdown.classList.remove('is-open');
-    accountDropdown.setAttribute('aria-hidden', 'true');
-    if (accountBtn) accountBtn.setAttribute('aria-expanded', 'false');
-  }
+    <a href="#" class="navbar__logo" aria-label="Kopi Nusantara — Beranda">
+      <img src="assets/images/logo.png" alt="Kopi Nusantara" width="140" height="40">
+    </a>
 
-  if (accountBtn) {
-    accountBtn.addEventListener('click', function () {
-      var loggedIn = accountUserView && !accountUserView.hidden;
-      if (loggedIn) {
-        isDropdownOpen() ? closeAccountDropdown() : openAccountDropdown();
-      } else {
-        openAuthModal('login');
-      }
-    });
-  }
-  document.addEventListener('click', function (e) {
-    if (!accountMenu || !isDropdownOpen()) return;
-    if (!accountMenu.contains(e.target)) closeAccountDropdown();
-  });
+    <nav class="navbar__nav" aria-label="Navigasi utama desktop">
+      <a href="#home" data-nav data-desktop-link>Beranda</a>
+      <a href="#produk" data-nav data-desktop-link>Kopi</a>
+      <a href="#tentang" data-nav data-desktop-link>Tentang</a>
+      <a href="#kios" data-nav data-desktop-link>Kios</a>
+      <a href="#lokasi" data-nav data-desktop-link>Lokasi</a>
+      <a href="#blog" data-nav data-desktop-link>Jurnal</a>
+      <a href="#kontak" data-nav data-desktop-link>Kontak</a>
+    </nav>
 
-  function renderAuthUI(user) {
-    if (!accountGuestView || !accountUserView) return;
+    <div class="navbar__actions">
+      <button class="icon-btn" type="button" aria-label="Cari produk" data-action="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.2" y2="16.2"/></svg>
+      </button>
+      <button class="icon-btn" type="button" aria-label="Lihat keranjang" data-action="cart">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 4h2l2.2 11.4a2 2 0 0 0 2 1.6h7.6a2 2 0 0 0 2-1.6L21 8H6"/><circle cx="9.5" cy="20.5" r="1.2"/><circle cx="17.5" cy="20.5" r="1.2"/></svg>
+        <span class="icon-btn__badge" data-cart-count>0</span>
+      </button>
+      <div class="account-menu" id="accountMenu">
+        <button class="icon-btn" type="button" aria-label="Akun saya" data-action="account" id="accountBtn" aria-haspopup="true" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="8" r="3.4"/><path d="M4.5 20c1.6-3.6 5-5.4 7.5-5.4s5.9 1.8 7.5 5.4"/></svg>
+          <img class="icon-btn__avatar" id="accountAvatarThumb" src="" alt="" hidden>
+        </button>
 
-    if (user) {
-      accountGuestView.hidden = true;
-      accountUserView.hidden = false;
+        <div class="account-dropdown" id="accountDropdown" aria-hidden="true">
+          <div class="account-dropdown__guest" id="accountGuestView">
+            <p>Masuk untuk pengalaman belanja yang lebih personal.</p>
+            <button type="button" class="btn btn--espresso btn--block" id="openAuthModalBtn">Masuk / Daftar</button>
+          </div>
+          <div class="account-dropdown__user" id="accountUserView" hidden>
+            <div class="account-dropdown__profile">
+              <img id="accountAvatarImg" src="" alt="" class="account-dropdown__avatar">
+              <div class="account-dropdown__id">
+                <p class="account-dropdown__name" id="accountNameText"></p>
+                <p class="account-dropdown__email" id="accountEmailText"></p>
+              </div>
+            </div>
+            <button type="button" class="btn btn--outline btn--block" id="logoutBtn">
+              <span class="auth-submit__label">Keluar</span>
+              <span class="auth-submit__spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
 
-      var name = user.displayName || (user.email ? user.email.split('@')[0] : 'Pengguna');
-      var initialLetter = name.charAt(0).toUpperCase();
-      var fallbackAvatar = 'data:image/svg+xml,' + encodeURIComponent(
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="32" fill="%23AD8A52"/><text x="50%" y="54%" font-family="DM Sans, sans-serif" font-size="26" fill="%23FBF8F3" text-anchor="middle">' + initialLetter + '</text></svg>'
-      );
-      var avatarSrc = user.photoURL || fallbackAvatar;
+<!-- ============ SEARCH OVERLAY ============ -->
+<div class="search-overlay" id="searchOverlay" aria-hidden="true">
+  <div class="search-overlay__backdrop" data-search-close></div>
+  <div class="search-overlay__panel" role="search" aria-label="Pencarian produk kopi">
+    <div class="search-overlay__bar">
+      <svg class="search-overlay__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.2" y2="16.2"/></svg>
+      <input type="text" id="searchInput" class="search-overlay__input" placeholder="Cari nama kopi, daerah asal, atau jenis roast..." autocomplete="off" aria-label="Cari produk kopi" role="combobox" aria-expanded="false" aria-controls="searchResults" aria-autocomplete="list">
+      <button class="search-overlay__close" type="button" data-search-close aria-label="Tutup pencarian">&times;</button>
+    </div>
+    <div class="search-overlay__results" id="searchResults" role="listbox" aria-label="Saran hasil pencarian" hidden></div>
+    <p class="search-overlay__hint" id="searchHint">Hasil pencarian tampil otomatis pada bagian Produk Unggulan.</p>
+  </div>
+</div>
 
-      if (accountNameText) accountNameText.textContent = name;
-      if (accountEmailText) accountEmailText.textContent = user.email || '';
-      if (accountAvatarImg) { accountAvatarImg.src = avatarSrc; accountAvatarImg.alt = name; }
-      if (accountAvatarThumb) {
-        accountAvatarThumb.src = avatarSrc;
-        accountAvatarThumb.alt = name;
-        accountAvatarThumb.hidden = false;
-      }
-      if (accountBtn) accountBtn.classList.add('icon-btn--has-avatar');
-    } else {
-      accountGuestView.hidden = false;
-      accountUserView.hidden = true;
-      closeAccountDropdown();
-      if (accountAvatarThumb) { accountAvatarThumb.hidden = true; accountAvatarThumb.src = ''; }
-      if (accountBtn) accountBtn.classList.remove('icon-btn--has-avatar');
-    }
-  }
+<!-- ============ FLOATING CONTACT BUTTON ============ -->
+<a href="#kontak" class="float-contact" aria-label="Hubungi Kopi Nusantara" data-nav>
+  <span class="float-contact__ring"></span>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+</a>
 
-  /* =======================================================
-     5. AUTH MODAL (login / register)
-  ======================================================= */
-  var authModal = document.getElementById('authModal');
-  var authModalTitle = document.getElementById('authModalTitle');
-  var authContextNote = document.getElementById('authContextNote');
-  var loginForm = document.getElementById('loginForm');
-  var registerForm = document.getElementById('registerForm');
-  var loginError = document.getElementById('loginError');
-  var registerError = document.getElementById('registerError');
-  var loginSubmitBtn = document.getElementById('loginSubmitBtn');
-  var registerSubmitBtn = document.getElementById('registerSubmitBtn');
-  var googleAuthBtn = document.getElementById('googleAuthBtn');
-  var authTabsEl = authModal ? authModal.querySelector('.auth-screen__tabs') : null;
-  var authDividerEl = authModal ? authModal.querySelector('.auth-divider') : null;
+<!-- ============ MOBILE MENU / SIDEBAR DRAWER ============ -->
+<div class="mobile-menu-backdrop" id="mobileMenuBackdrop" aria-hidden="true"></div>
+<div class="mobile-menu" id="mobileMenu" aria-hidden="true">
+  <button class="mobile-menu__close" id="mobileMenuClose" type="button" aria-label="Tutup menu">
+    <span></span>
+    <span></span>
+  </button>
+  <nav class="mobile-menu__nav" aria-label="Navigasi utama">
+    <a href="#home" data-nav data-mobile-link><span>01</span>Home</a>
+    <a href="#produk" data-nav data-mobile-link><span>02</span>Produk</a>
+    <a href="#tentang" data-nav data-mobile-link><span>03</span>Tentang Kami</a>
+    <a href="#kios" data-nav data-mobile-link><span>04</span>Kios</a>
+    <a href="#lokasi" data-nav data-mobile-link><span>05</span>Lokasi</a>
+    <a href="#blog" data-nav data-mobile-link><span>06</span>Blog</a>
+    <a href="#kontak" data-nav data-mobile-link><span>07</span>Kontak</a>
+  </nav>
+  <div class="mobile-menu__footer">
+    <p>Kopi pilihan dari ujung barat hingga timur Nusantara.</p>
+    <div class="mobile-menu__social">
+      <a href="#" data-placeholder>Instagram</a>
+      <a href="#" data-placeholder>TikTok</a>
+      <a href="https://wa.me/6285122108079" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+    </div>
+  </div>
+</div>
 
-  /* =======================================================
-     5a. AUTH VIDEO — autoplay WITH sound, no duplicates
-     Both <video> elements ship muted+autoplay+loop in the HTML (so they
-     always autoplay silently, even before this script runs). This script
-     only adds sound: right when the modal actually opens (i.e. inside a
-     user click), it unmutes whichever one is currently visible (mobile vs
-     desktop, picked with the same 861px breakpoint the CSS uses) and calls
-     play() again — required because merely removing "muted" doesn't make
-     a browser start playing audio without a fresh play() call tied to a
-     user gesture. The other (inactive) video is paused/reset so only one
-     video is ever producing sound. On close, both are paused and reset to
-     0 so the next open always starts a single, fresh playback instead of
-     stacking another one on top.
-  ======================================================= */
-  var authVisualDesktop = authModal ? authModal.querySelector('.auth-screen__visual-media--desktop') : null;
-  var authVisualMobile = authModal ? authModal.querySelector('.auth-screen__visual-media--mobile') : null;
-  var authDesktopMQ = window.matchMedia('(min-width: 861px)');
+<main id="home">
 
-  function getActiveAuthVideo() {
-    return authDesktopMQ.matches ? authVisualDesktop : authVisualMobile;
-  }
-  function getInactiveAuthVideo() {
-    return authDesktopMQ.matches ? authVisualMobile : authVisualDesktop;
-  }
-  function resetAuthVideo(video) {
-    if (!video) return;
-    video.pause();
-    try { video.currentTime = 0; } catch (e) { /* ignore — not seekable yet */ }
-  }
-  function playActiveAuthVideo() {
-    resetAuthVideo(getInactiveAuthVideo());
-    var active = getActiveAuthVideo();
-    if (!active) return;
-    active.muted = false;
-    active.loop = true;
-    var playPromise = active.play();
-    if (playPromise && typeof playPromise.catch === 'function') {
-      playPromise.catch(function () {
-        // Browser blocked the unmuted play() (rare — this only runs right
-        // after a user click). Fail silently rather than log a console error.
-      });
-    }
-  }
-  function stopAllAuthVideos() {
-    resetAuthVideo(authVisualDesktop);
-    resetAuthVideo(authVisualMobile);
-  }
-  // If the viewport crosses the mobile/desktop breakpoint while the modal
-  // is already open (e.g. rotating a tablet), swap which video is playing
-  // instead of ever letting both run at once.
-  var handleAuthBreakpointChange = function () {
-    if (authModal && authModal.classList.contains('is-open')) playActiveAuthVideo();
-  };
-  if (authDesktopMQ.addEventListener) {
-    authDesktopMQ.addEventListener('change', handleAuthBreakpointChange);
-  } else if (authDesktopMQ.addListener) {
-    authDesktopMQ.addListener(handleAuthBreakpointChange);
-  }
+  <!-- ============ HERO ============ -->
+  <section class="hero" aria-label="Perkenalan Kopi Nusantara">
 
-  /* =======================================================
-     5c. GMAIL OTP VERIFICATION (after ANY sign-in: Google,
-     Email/Password login, or Register)
-     Reuses this same auth-screen: once Firebase Auth resolves
-     to a valid @gmail.com address, the modal swaps from the
-     Google/login/register panel into this OTP panel instead of
-     closing. Firebase Auth alone is NOT treated as "signed in"
-     for ANY provider — see window.KopiAuth below.
-  ======================================================= */
-  var otpForm = document.getElementById('otpForm');
-  var otpMaskedEmailEl = document.getElementById('otpMaskedEmail');
-  var otpError = document.getElementById('otpError');
-  var otpVerifyBtn = document.getElementById('otpVerifyBtn');
-  var otpResendBtn = document.getElementById('otpResendBtn');
-  var otpBoxes = otpForm ? Array.prototype.slice.call(otpForm.querySelectorAll('.otp-box')) : [];
+    <!-- Hero banner: image only, 16:9, terpisah dari teks -->
+    <div class="hero__frame reveal" data-reveal>
+      <div class="hero__media" id="heroMedia" data-hero-slideshow>
+        <img src="assets/images/about.jpg" alt="Suasana Kopi Nusantara" class="hero__img is-active" data-hero-slide loading="eager">
+        <img src="assets/images/hero-02.jpg" alt="Suasana Kopi Nusantara" class="hero__img" data-hero-slide loading="lazy">
+        <img src="assets/images/hero-03.jpg" alt="Suasana Kopi Nusantara" class="hero__img" data-hero-slide loading="lazy">
+        <img src="assets/images/hero-04.jpg" alt="Suasana Kopi Nusantara" class="hero__img" data-hero-slide loading="lazy">
+        <div class="hero__overlay"></div>
+      </div>
 
-  var otpPendingUser = null;
-  var otpSuccessMessage = 'Berhasil masuk.';
-  var resendTimerId = null;
-  // Tracks server-verified OTP status for whichever user is currently
-  // signed in via Firebase Auth — used for ALL providers (Email/Password,
-  // Register, Google), not just Google. See window.KopiAuth below.
-  var otpVerificationState = { uid: null, verified: false };
+      <svg class="hero__badge" viewBox="0 0 120 120" aria-hidden="true">
+        <defs><path id="heroStampPath" d="M 60,60 m -50,0 a 50,50 0 1,1 100,0 a 50,50 0 1,1 -100,0"/></defs>
+        <circle cx="60" cy="60" r="50" class="hero__badge-ring"/>
+        <text><textPath href="#heroStampPath" startOffset="0%">KOPI NUSANTARA • SEJAK 2024 • KOPI NUSANTARA • </textPath></text>
+        <circle cx="60" cy="60" r="20" class="hero__badge-dot"/>
+      </svg>
 
-  function maskEmailClient(email) {
-    var parts = String(email || '').split('@');
-    if (parts.length !== 2) return email || '';
-    var name = parts[0];
-    return (name.length <= 1 ? name : name[0] + '***') + '@' + parts[1];
-  }
+    </div>
 
-  function updateResendLabel(remaining) {
-    if (otpResendBtn) otpResendBtn.textContent = 'Kirim ulang dalam ' + remaining + ' detik';
-  }
-  function stopResendCountdown() {
-    if (resendTimerId) { window.clearInterval(resendTimerId); resendTimerId = null; }
-  }
-  function startResendCountdown(seconds) {
-    stopResendCountdown();
-    var remaining = Math.max(1, seconds || 60);
-    if (otpResendBtn) otpResendBtn.disabled = true;
-    updateResendLabel(remaining);
-    resendTimerId = window.setInterval(function () {
-      remaining -= 1;
-      if (remaining <= 0) {
-        stopResendCountdown();
-        if (otpResendBtn) { otpResendBtn.disabled = false; otpResendBtn.textContent = 'Kirim ulang kode'; }
-        return;
-      }
-      updateResendLabel(remaining);
-    }, 1000);
-  }
+    <!-- Slide indicator: di bawah gambar, di atas teks -->
+    <div class="hero__dots d-flex justify-content-center align-items-center gap-2" id="heroDots" data-hero-dots role="tablist" aria-label="Pilih slide hero"></div>
 
-  /* ---- Glass OTP animation (visual only; runs AFTER the server accepted the code) ---- */
-  var otpGlass = document.getElementById('otpGlass');
-  var otpGlassTitle = document.getElementById('otpGlassTitle');
-  var otpGlassSub = document.getElementById('otpGlassSub');
-  var otpAnimating = false;
-  var otpGlassTimers = [];
-  var otpGlassResetTimer = null;
+    <!-- Text content: terpisah penuh dari gambar -->
+    <div class="hero__content">
+      <div class="hero__text">
+        <p class="eyebrow reveal" data-reveal>Kopi Pilihan Nusantara</p>
+        <h1 class="hero__headline">
+          <span class="line" data-hero-line>Rasa Nusantara,</span>
+          <span class="line" data-hero-line>Dalam Setiap Seduhan.</span>
+        </h1>
+        <p class="hero__desc reveal" data-reveal>
+          Biji kopi pilihan dari berbagai daerah Indonesia — dipilih dengan cermat, disangrai dengan perhatian, dan dikirim untuk menemani setiap momen.
+        </p>
+        <p class="hero__url reveal" data-reveal>www.kopinusantara.id</p>
+        <div class="hero__cta reveal d-flex flex-wrap gap-3" data-reveal>
+          <a href="#produk" class="btn btn--primary">Jelajahi Kopi</a>
+          <a href="#tentang" class="btn btn--ghost">Kenali Kopi Nusantara</a>
+        </div>
+      </div>
+      <div class="hero__side reveal" data-reveal>
+        <img src="assets/images/hero-02.jpg" alt="Suasana Kopi Nusantara" loading="lazy">
+      </div>
+    </div>
+  </section>
 
-  function clearOtpGlassTimers() {
-    otpGlassTimers.forEach(function (t) { window.clearTimeout(t); });
-    otpGlassTimers = [];
-  }
-  function resetOtpGlass() {
-    clearOtpGlassTimers();
-    if (otpGlassResetTimer) { window.clearTimeout(otpGlassResetTimer); otpGlassResetTimer = null; }
-    otpAnimating = false;
-    if (!otpGlass) return;
-    otpGlass.classList.remove('is-active', 'is-success');
-    otpGlass.setAttribute('aria-hidden', 'true');
-    if (otpGlassTitle) otpGlassTitle.textContent = 'Verifying...';
-    if (otpGlassSub) otpGlassSub.textContent = 'Memeriksa kode keamanan Anda';
-  }
-  // Stops a running animation immediately, hides the overlay after the modal's own close fade.
-  function cancelOtpGlass() {
-    clearOtpGlassTimers();
-    otpAnimating = false;
-    if (!otpGlass || !otpGlass.classList.contains('is-active')) return;
-    if (otpGlassResetTimer) window.clearTimeout(otpGlassResetTimer);
-    otpGlassResetTimer = window.setTimeout(resetOtpGlass, 650);
-  }
-  function playOtpGlass(onDone) {
-    if (!otpGlass) { onDone(); return; }
-    var verifyMs = prefersReducedMotion ? 250 : 1400;
-    var holdMs = prefersReducedMotion ? 500 : 1500;
-    resetOtpGlass();
-    otpAnimating = true;
-    otpGlass.classList.add('is-active');
-    otpGlass.setAttribute('aria-hidden', 'false');
-    otpGlassTimers.push(window.setTimeout(function () {
-      if (otpGlassTitle) otpGlassTitle.textContent = 'Success';
-      if (otpGlassSub) otpGlassSub.textContent = 'Kode verifikasi berhasil dikonfirmasi';
-      otpGlass.classList.add('is-success');
-      otpGlassTimers.push(window.setTimeout(function () {
-        otpAnimating = false;
-        onDone();
-      }, holdMs));
-    }, verifyMs));
-  }
+  <!-- ============ TENTANG KAMI ============ -->
+  <section class="about" id="tentang" aria-label="Tentang Kopi Nusantara">
+    <div class="about__media reveal" data-reveal>
+      <video
+        class="about__video"
+        src="assets/images/about.mp4"
+        poster="assets/images/about.jpg"
+        autoplay muted loop playsinline
+        aria-label="Proses memilih dan menyangrai biji kopi Nusantara"
+        id="aboutVideo">
+      </video>
+    </div>
+    <div class="about__content">
+      <p class="eyebrow reveal" data-reveal>Cerita Kami</p>
+      <h2 class="reveal" data-reveal>Menjelajahi Indonesia,<br>Satu Cangkir Dalam Sekali Seduhan.</h2>
+      <p class="about__text reveal" data-reveal>
+        Dari dataran tinggi Gayo hingga lereng Kintamani, Indonesia menyimpan ribuan kilometer tanah penghasil kopi dengan karakter rasa yang tak pernah sama dua kali. Kopi Nusantara lahir dari keinginan sederhana: membawa keragaman itu utuh ke dalam cangkir Anda, tanpa menyamarkan asalnya.
+      </p>
+      <p class="about__text reveal" data-reveal>
+        Setiap biji melewati tangan petani yang mengenal tanahnya, disangrai secukupnya agar karakter aslinya tetap terjaga, lalu dikirim dalam kondisi terbaik — sedekat mungkin dengan momen ia dipetik.
+      </p>
+      <div class="about__stats reveal" data-reveal>
+        <div><strong data-count-to="30" data-suffix="+">0+</strong><span>Daerah Penghasil</span></div>
+        <div><strong data-count-to="100" data-suffix="%">0%</strong><span>Kopi Nusantara</span></div>
+      </div>
+    </div>
+  </section>
 
-  function showOtpPanel(maskedEmail) {
-    if (!authModal || !otpForm) return;
-    if (authModalTitle) authModalTitle.textContent = 'Verifikasi Email';
-    if (authContextNote) authContextNote.hidden = true;
-    if (authTabsEl) authTabsEl.hidden = true;
-    if (googleAuthBtn) googleAuthBtn.hidden = true;
-    if (authDividerEl) authDividerEl.hidden = true;
-    if (loginForm) loginForm.hidden = true;
-    if (registerForm) registerForm.hidden = true;
-    if (otpMaskedEmailEl) otpMaskedEmailEl.textContent = maskedEmail || '';
-    setFormError(otpError, '');
-    resetOtpGlass();
-    otpBoxes.forEach(function (b) { b.value = ''; });
-    otpForm.hidden = false;
-    if (!authModal.classList.contains('is-open')) {
-      authModal.classList.add('is-open');
-      authModal.setAttribute('aria-hidden', 'false');
-      if (window.__kopiScrollLock) window.__kopiScrollLock.lock();
-      playActiveAuthVideo();
-    }
-    if (otpBoxes[0]) otpBoxes[0].focus();
-  }
+  <!-- ============ PROFIL KOPI NUSANTARA ============ -->
+  <section class="profile" aria-label="Profil Kopi Nusantara">
+    <div class="profile__text reveal" data-reveal>
+      <p class="eyebrow">Profil Kami</p>
+      <h2>Profil Kopi Nusantara</h2>
+      <p>
+        Kopi Nusantara lahir dari gagasan sederhana bahwa kopi terbaik Indonesia sering kali tertinggal di kebunnya sendiri, jarang sampai utuh ke tangan penikmatnya. Kami hadir sebagai jembatan — menghubungkan petani di dataran tinggi Nusantara dengan siapa pun yang ingin merasakan rasa asli daerahnya, secangkir demi secangkir.
+      </p>
+      <p>
+        Didirikan oleh tim yang menghabiskan waktu bertahun-tahun menjelajah kebun kopi dari Aceh hingga Bali, Kopi Nusantara menggabungkan kurasi yang cermat dengan proses penyangraian kecil-kecil, agar setiap batch tetap terasa personal — bukan produksi massal tanpa wajah.
+      </p>
+    </div>
+    <div class="profile__gallery reveal" data-reveal>
+      <div class="profile__gallery-img">
+        <img src="assets/images/origin-gayo.jpg" alt="Kebun kopi Gayo, salah satu asal biji Kopi Nusantara" loading="lazy">
+      </div>
+      <div class="profile__gallery-img profile__gallery-img--offset">
+        <img src="assets/images/origin-kintamani.jpg" alt="Kebun kopi Kintamani, salah satu asal biji Kopi Nusantara" loading="lazy">
+      </div>
+    </div>
+  </section>
 
-  function hideOtpPanel() {
-    if (authTabsEl) authTabsEl.hidden = false;
-    if (googleAuthBtn) googleAuthBtn.hidden = false;
-    if (authDividerEl) authDividerEl.hidden = false;
-    if (otpForm) otpForm.hidden = true;
-    stopResendCountdown();
-    otpPendingUser = null;
-  }
+  <!-- ============ ASAL KOPI NUSANTARA ============ -->
+  <section class="origins" aria-label="Asal kopi Nusantara">
+    <div class="section-head">
+      <p class="eyebrow reveal" data-reveal>Peta Rasa</p>
+      <h2 class="reveal" data-reveal>Dari Ujung Barat<br>Hingga Timur Nusantara</h2>
+      <p class="section-head__desc reveal" data-reveal>
+        Setiap daerah menyimpan iklim, ketinggian, dan tangan pengolah yang berbeda — dan karena itu, karakter rasa yang tak tertukar.
+      </p>
+    </div>
 
-  function requestOtp(user, successMessage) {
-    if (successMessage) otpSuccessMessage = successMessage;
-    return user.getIdToken().then(function (idToken) {
-      return fetch('/api/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken: idToken })
-      }).then(function (resp) { return resp.json(); });
-    }).then(function (data) {
-      if (!data.ok) {
-        if (data.error === 'resend_cooldown') {
-          otpPendingUser = user;
-          showOtpPanel(maskEmailClient(user.email));
-          startResendCountdown(data.secondsLeft);
-          return;
-        }
-        return Promise.reject(data);
-      }
-      otpPendingUser = user;
-      showOtpPanel(data.maskedEmail);
-      startResendCountdown(data.resendCooldownSeconds || 60);
-    });
-  }
+    <div class="origins__carousel-wrap">
+      <div class="origins__carousel" id="originsCarousel" tabindex="0" aria-label="Galeri asal kopi, geser untuk melihat lebih banyak">
 
-  function submitOtpCode(code) {
-    if (!otpPendingUser) return Promise.reject({ message: 'Sesi verifikasi tidak ditemukan. Silakan masuk ulang.' });
-    return otpPendingUser.getIdToken().then(function (idToken) {
-      return fetch('/api/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken: idToken, code: code })
-      }).then(function (resp) { return resp.json(); });
-    });
-  }
+        <article class="origin-card">
+          <div class="origin-card__img">
+            <img src="assets/images/origin-gayo.jpg" alt="Kebun kopi di dataran tinggi Gayo, Aceh" loading="lazy">
+            <svg class="origin-card__stamp" viewBox="0 0 120 120" aria-hidden="true">
+              <defs><path id="stampPath1" d="M 60,60 m -44,0 a 44,44 0 1,1 88,0 a 44,44 0 1,1 -88,0"/></defs>
+              <circle cx="60" cy="60" r="44" class="origin-card__stamp-ring"/>
+              <text><textPath href="#stampPath1" startOffset="0%">GAYO • ACEH • GAYO • ACEH • </textPath></text>
+            </svg>
+          </div>
+          <div class="origin-card__body">
+            <h3>Gayo — Aceh</h3>
+            <p class="origin-card__meta">Dataran Tinggi Gayo · Arabika</p>
+            <p>Tumbuh di ketinggian dengan aroma rempah lembut dan keasaman yang tenang, khas tanah vulkanik Aceh.</p>
+          </div>
+        </article>
 
-  otpBoxes.forEach(function (box, idx) {
-    box.addEventListener('input', function () {
-      box.value = box.value.replace(/\D/g, '').slice(0, 1);
-      if (box.value && otpBoxes[idx + 1]) otpBoxes[idx + 1].focus();
-    });
-    box.addEventListener('keydown', function (e) {
-      if (e.key === 'Backspace' && !box.value && otpBoxes[idx - 1]) {
-        otpBoxes[idx - 1].focus();
-      }
-    });
-    box.addEventListener('paste', function (e) {
-      var text = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '');
-      if (!text) return;
-      e.preventDefault();
-      for (var i = 0; i < otpBoxes.length; i++) { otpBoxes[i].value = text[i] || ''; }
-      var lastIdx = Math.min(text.length, otpBoxes.length) - 1;
-      if (otpBoxes[lastIdx]) otpBoxes[lastIdx].focus();
-    });
-  });
+        <article class="origin-card">
+          <div class="origin-card__img">
+            <img src="assets/images/origin-toraja.jpg" alt="Perkebunan kopi Toraja di Sulawesi" loading="lazy">
+            <svg class="origin-card__stamp" viewBox="0 0 120 120" aria-hidden="true">
+              <defs><path id="stampPath2" d="M 60,60 m -44,0 a 44,44 0 1,1 88,0 a 44,44 0 1,1 -88,0"/></defs>
+              <circle cx="60" cy="60" r="44" class="origin-card__stamp-ring"/>
+              <text><textPath href="#stampPath2" startOffset="0%">TORAJA • SULAWESI • TORAJA • </textPath></text>
+            </svg>
+          </div>
+          <div class="origin-card__body">
+            <h3>Toraja — Sulawesi</h3>
+            <p class="origin-card__meta">Tana Toraja · Arabika</p>
+            <p>Body yang tebal dengan sentuhan earthy dan rempah hangat, hasil pengolahan turun-temurun di pegunungan.</p>
+          </div>
+        </article>
 
-  if (otpForm) {
-    otpForm.addEventListener('submit', function (e) {
-      e.preventDefault();
-      if (otpAnimating || otpVerifyBtn.classList.contains('is-loading')) return;
-      var code = otpBoxes.map(function (b) { return b.value; }).join('');
-      if (!/^\d{6}$/.test(code)) {
-        setFormError(otpError, 'Masukkan 6 digit kode.');
-        return;
-      }
-      setFormError(otpError, '');
-      setButtonLoading(otpVerifyBtn, true);
-      submitOtpCode(code)
-        .then(function (data) {
-          if (!data.ok) {
-            setFormError(otpError, data.message || 'Kode salah.');
-            otpBoxes.forEach(function (b) { b.value = ''; });
-            if (otpBoxes[0]) otpBoxes[0].focus();
-            return;
-          }
-          var verifiedUser = otpPendingUser;
-          otpVerificationState = { uid: verifiedUser.uid, verified: true };
-          if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); // tutup keyboard mobile
-          playOtpGlass(function () {
-            if (!authModal || !authModal.classList.contains('is-open')) return; // ditutup manual saat animasi
-            hideOtpPanel();
-            showToast(otpSuccessMessage || 'Berhasil masuk.', 'success');
-            resolvePendingAfterAuth(verifiedUser);
-            closeAuthModal();
-          });
-        })
-        .catch(function () {
-          setFormError(otpError, 'Terjadi kesalahan. Coba lagi.');
-        })
-        .finally(function () {
-          setButtonLoading(otpVerifyBtn, false);
-        });
-    });
-  }
+        <article class="origin-card">
+          <div class="origin-card__img">
+            <img src="assets/images/origin-kintamani.jpg" alt="Kebun kopi Kintamani di Bali" loading="lazy">
+            <svg class="origin-card__stamp" viewBox="0 0 120 120" aria-hidden="true">
+              <defs><path id="stampPath3" d="M 60,60 m -44,0 a 44,44 0 1,1 88,0 a 44,44 0 1,1 -88,0"/></defs>
+              <circle cx="60" cy="60" r="44" class="origin-card__stamp-ring"/>
+              <text><textPath href="#stampPath3" startOffset="0%">KINTAMANI • BALI • KINTAMANI • </textPath></text>
+            </svg>
+          </div>
+          <div class="origin-card__body">
+            <h3>Kintamani — Bali</h3>
+            <p class="origin-card__meta">Dataran Tinggi Kintamani · Arabika</p>
+            <p>Ditanam berdampingan dengan jeruk, memberi keasaman citrus yang cerah dan seduhan yang ringan.</p>
+          </div>
+        </article>
 
-  if (otpResendBtn) {
-    otpResendBtn.addEventListener('click', function () {
-      if (otpResendBtn.disabled || !otpPendingUser) return;
-      requestOtp(otpPendingUser).catch(function (err) {
-        showToast((err && err.message) || 'Gagal mengirim ulang kode.', 'error');
-      });
-    });
-  }
+      </div>
 
-  // Set by window.KopiAuth.requireAuth() when checkout is what triggered
-  // the auth screen. Resolved (and cleared) once login/register succeeds;
-  // cleared without firing if the user closes the screen manually.
-  var pendingAfterAuth = null;
+      <div class="carousel-nav">
+        <button class="carousel-nav__btn" data-carousel-prev="origins" aria-label="Sebelumnya">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <button class="carousel-nav__btn" data-carousel-next="origins" aria-label="Berikutnya">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
 
-  function setFormError(el, message) {
-    if (!el) return;
-    if (!message) { el.hidden = true; el.textContent = ''; return; }
-    el.textContent = message;
-    el.hidden = false;
-    if (!prefersReducedMotion) {
-      el.classList.remove('is-shaking');
-      void el.offsetWidth; // restart animation reliably on repeated errors
-      el.classList.add('is-shaking');
-    }
-  }
+  <!-- ============ VISI & MISI ============ -->
+  <section class="vision" aria-label="Visi dan misi Kopi Nusantara">
+    <div class="vision__media reveal" data-reveal>
+      <img src="assets/images/origin-toraja.jpg" alt="Kebun kopi Toraja, bagian dari visi Kopi Nusantara" loading="lazy">
+    </div>
+    <div class="vision__content">
+      <div class="vision__block reveal" data-reveal>
+        <p class="eyebrow">Visi</p>
+        <p class="vision__text">Menjadi jembatan yang mempertemukan kopi terbaik dari setiap daerah di Indonesia dengan penikmatnya, sambil menjaga keadilan bagi petani yang menanamnya.</p>
+      </div>
+      <div class="vision__block reveal" data-reveal>
+        <p class="eyebrow">Misi</p>
+        <ul class="vision__list">
+          <li>Mengkurasi dan menyediakan biji kopi berkualitas tinggi dari berbagai daerah penghasil.</li>
+          <li>Menjaga transparansi asal-usul setiap batch, dari kebun hingga cangkir.</li>
+          <li>Bermitra langsung dengan petani lokal secara adil dan berkelanjutan.</li>
+          <li>Menghadirkan pengalaman menyeduh yang konsisten bagi setiap pelanggan.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
 
-  function openAuthModal(tab, options) {
-    if (!authModal) return;
-    closeAccountDropdown();
-    switchAuthTab(tab || 'login');
-    if (authContextNote) authContextNote.hidden = !(options && options.fromCheckout);
-    if (authModal.classList.contains('is-open')) return; // sudah terbuka, cukup ganti tab/context di atas
-    authModal.classList.add('is-open');
-    authModal.setAttribute('aria-hidden', 'false');
-    if (window.__kopiScrollLock) window.__kopiScrollLock.lock();
-    playActiveAuthVideo();
-  }
-  function closeAuthModal() {
-    if (!authModal || !authModal.classList.contains('is-open')) return;
-    authModal.classList.remove('is-open');
-    authModal.setAttribute('aria-hidden', 'true');
-    if (window.__kopiScrollLock) window.__kopiScrollLock.unlock();
-    stopAllAuthVideos();
-    setFormError(loginError, '');
-    setFormError(registerError, '');
-    if (loginForm) loginForm.reset();
-    if (registerForm) registerForm.reset();
-    cancelOtpGlass();
-    hideOtpPanel(); // menutup manual saat OTP = batal verifikasi, bukan menandai berhasil
-    pendingAfterAuth = null; // menutup manual = batal, bukan "lanjutkan ke checkout"
-  }
+  <!-- ============ PRODUK UNGGULAN ============ -->
+  <!--
+    CATATAN PENGEMBANGAN:
+    Product card di bawah ini dirender secara dinamis dari array PRODUCTS
+    di script.js (data-driven, bukan hardcode per kartu). Struktur field
+    { id, name, origin, type, price, image, rating, reviews, badge, weights }
+    sengaja dibuat agar mudah diganti dengan data Firebase pada tahap berikutnya.
+    Filter, detail modal, dan cart saat ini masih frontend-only (belum ada
+    database/backend/payment).
+  -->
+  <section class="products" id="produk" aria-label="Produk unggulan">
+    <div class="section-head">
+      <p class="eyebrow reveal" data-reveal>Produk Unggulan</p>
+      <h2 class="reveal" data-reveal>Dipilih Untuk<br>Seduhan Terbaik Anda</h2>
+      <p class="section-head__desc reveal" data-reveal>
+        Pilih dari biji kopi terbaik yang kami kurasi dari setiap daerah penghasil.
+      </p>
+    </div>
 
-  /* =======================================================
-     5b. CHECKOUT AUTH GATE — public bridge for script.js
-     script.js (cart/checkout) is a separate, non-module script and
-     never touches Firebase directly. This is the only surface it
-     needs: check auth state, or require it and get called back
-     once the user is actually signed in, without losing cart state.
-  ======================================================= */
-  function resolvePendingAfterAuth(user) {
-    if (!pendingAfterAuth) return;
-    var callback = pendingAfterAuth;
-    pendingAfterAuth = null;
-    // Beri waktu transisi auth-screen menutup dulu sebelum drawer checkout
-    // tampil, supaya tidak terasa "meloncat".
-    window.setTimeout(function () { callback(user); }, 200);
-  }
-  window.KopiAuth = {
-    // "authenticated" berarti sudah lolos verifikasi OTP Gmail — untuk
-    // SEMUA provider (Email/Password, Register, Google), bukan sekadar
-    // punya sesi Firebase Auth (lihat bagian 18 pada instruksi asal:
-    // Firebase Auth != OTP verified).
-    isAuthenticated: function () {
-      var user = auth.currentUser;
-      if (!user) return false;
-      return otpVerificationState.uid === user.uid && otpVerificationState.verified;
-    },
-    getCurrentUser: function () { return auth.currentUser; },
-    requireAuth: function (onAuthenticated) {
-      var user = auth.currentUser;
-      if (!user) {
-        pendingAfterAuth = onAuthenticated;
-        openAuthModal('login', { fromCheckout: true });
-        return;
-      }
-      if (otpVerificationState.uid === user.uid && otpVerificationState.verified) {
-        onAuthenticated(user);
-        return;
-      }
-      // Sudah login Firebase tapi belum (atau belum diketahui) terverifikasi
-      // OTP — minta OTP baru dan lanjutkan callback checkout setelah kode benar.
-      pendingAfterAuth = onAuthenticated;
-      requestOtp(user).catch(function (err) {
-        showToast((err && err.message) || 'Gagal mengirim kode verifikasi.', 'error');
-      });
-    }
-  };
+    <div class="products__filter reveal" data-reveal data-product-filter role="tablist" aria-label="Filter produk berdasarkan daerah">
+      <button class="filter-chip is-active" type="button" data-filter="all" role="tab" aria-selected="true">Semua</button>
+      <button class="filter-chip" type="button" data-filter="Aceh" role="tab" aria-selected="false">Aceh</button>
+      <button class="filter-chip" type="button" data-filter="Sulawesi" role="tab" aria-selected="false">Sulawesi</button>
+      <button class="filter-chip" type="button" data-filter="Bali" role="tab" aria-selected="false">Bali</button>
+      <button class="filter-chip" type="button" data-filter="Nusa Tenggara" role="tab" aria-selected="false">Nusa Tenggara</button>
+      <button class="filter-chip" type="button" data-filter="Jawa Barat" role="tab" aria-selected="false">Jawa Barat</button>
+    </div>
 
-  function switchAuthTab(tab) {
-    var tabs = authModal ? authModal.querySelectorAll('[data-auth-tab]') : [];
-    tabs.forEach(function (btn) {
-      var active = btn.getAttribute('data-auth-tab') === tab;
-      btn.classList.toggle('is-active', active);
-      btn.setAttribute('aria-selected', String(active));
-    });
-    if (authModal) authModal.classList.toggle('is-register', tab === 'register');
-    if (authModalTitle) authModalTitle.textContent = tab === 'register' ? 'Buat Akun Baru' : 'Masuk ke Akun Anda';
-    setFormError(loginError, '');
-    setFormError(registerError, '');
+    <div class="products__carousel-wrap">
+      <div class="products__carousel" id="productsCarousel" aria-label="Daftar produk" data-product-list>
+        <!-- diisi oleh script.js dari DUMMY_PRODUCTS -->
+      </div>
+    </div>
+  </section>
 
-    var targetForm = tab === 'register' ? registerForm : loginForm;
-    var otherForm = tab === 'register' ? loginForm : registerForm;
-    if (!targetForm) return;
+  <!-- ============ KENAPA KOPI NUSANTARA ============ -->
+  <section class="why" aria-label="Kenapa memilih Kopi Nusantara">
+    <div class="section-head">
+      <p class="eyebrow reveal" data-reveal>Komitmen Kami</p>
+      <h2 class="reveal" data-reveal>Kenapa Harus Memilih<br>Kopi Nusantara?</h2>
+    </div>
 
-    // Only cross-fade when this is an actual tab change (target was hidden
-    // and is about to become visible). openAuthModal() calls this on every
-    // open — including re-opening on the tab that's already active — and
-    // that case should just show the form instantly, not replay the swap
-    // animation on top of the panel's own entrance stagger.
-    var isRealSwitch = targetForm.hidden === true;
-    if (!isRealSwitch) {
-      if (otherForm) otherForm.hidden = true;
-      targetForm.hidden = false;
-      return;
-    }
+    <div class="why__grid">
+      <div class="why__item reveal" data-reveal>
+        <span class="why__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/></svg></span>
+        <div class="why__item-text">
+          <h3>Kopi Nusantara Pilihan</h3>
+          <p>Setiap biji disortir manual untuk memastikan hanya kualitas terbaik yang sampai ke tangan Anda.</p>
+        </div>
+      </div>
+      <div class="why__item reveal" data-reveal>
+        <span class="why__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 2v6M12 22v-6M4.9 4.9l4.2 4.2M14.9 14.9l4.2 4.2M2 12h6M16 12h6M4.9 19.1l4.2-4.2M14.9 9.1l4.2-4.2"/></svg></span>
+        <div class="why__item-text">
+          <h3>Asal Kopi Terjaga</h3>
+          <p>Kami menelusuri setiap batch hingga ke kebun asalnya, menjaga jejak dan cerita di baliknya.</p>
+        </div>
+      </div>
+      <div class="why__item reveal" data-reveal>
+        <span class="why__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/></svg></span>
+        <div class="why__item-text">
+          <h3>Pilihan Berat Beragam</h3>
+          <p>Dari 100 gram untuk mencoba hingga 1 kilogram untuk kebutuhan harian — sesuai ritme Anda.</p>
+        </div>
+      </div>
+      <div class="why__item reveal" data-reveal>
+        <span class="why__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg></span>
+        <div class="why__item-text">
+          <h3>Dikirim Dengan Perhatian</h3>
+          <p>Dikemas rapat agar aroma dan kesegaran tetap terjaga sampai di depan pintu Anda.</p>
+        </div>
+      </div>
+      <div class="why__item reveal" data-reveal>
+        <span class="why__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 3c-3 3-5 6-5 9a5 5 0 0 0 10 0c0-3-2-6-5-9z"/><path d="M12 21v-4"/></svg></span>
+        <div class="why__item-text">
+          <h3>Kemasan Ramah Lingkungan</h3>
+          <p>Menggunakan kemasan yang dapat didaur ulang untuk menjaga kesegaran tanpa membebani bumi.</p>
+        </div>
+      </div>
+      <div class="why__item reveal" data-reveal>
+        <span class="why__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M17 20h-10a4 4 0 0 1 0-8h.5"/><circle cx="9" cy="7" r="3.2"/><path d="M15 20v-2a4 4 0 0 0-3-3.87"/><circle cx="17" cy="7" r="2.6"/></svg></span>
+        <div class="why__item-text">
+          <h3>Pendampingan Untuk Mitra</h3>
+          <p>Kami terbuka membantu reseller dan mitra usaha kecil yang ingin menjual Kopi Nusantara di daerahnya.</p>
+        </div>
+      </div>
+    </div>
+  </section>
 
-    if (otherForm && !otherForm.hidden) {
-      if (prefersReducedMotion) {
-        otherForm.hidden = true;
-      } else {
-        otherForm.classList.add('auth-form--out');
-        window.setTimeout(function () {
-          otherForm.hidden = true;
-          otherForm.classList.remove('auth-form--out');
-        }, 260);
-      }
-    }
+  <!-- ============ KIOS / OUTLET ============ -->
+  <section class="kios" id="kios" aria-label="Kios dan outlet Kopi Nusantara">
+    <div class="section-head">
+      <p class="eyebrow reveal" data-reveal>Kunjungi Kami</p>
+      <h2 class="reveal" data-reveal>Kios Kopi Nusantara</h2>
+      <p class="section-head__desc reveal" data-reveal>
+        Bukan hanya di layar — datang dan rasakan langsung Kopi Nusantara di kios kami.
+      </p>
+    </div>
 
-    targetForm.hidden = false;
-    if (!prefersReducedMotion) {
-      targetForm.classList.add('auth-form--in');
-      // Double rAF: let the browser paint the "in" starting position first,
-      // then remove the class on the next frame so the transition actually
-      // has a from-state to animate away from (a single rAF is sometimes
-      // batched into the same frame as the class add and gets skipped).
-      window.requestAnimationFrame(function () {
-        window.requestAnimationFrame(function () {
-          targetForm.classList.remove('auth-form--in');
-        });
-      });
-    }
-  }
+    <div class="kios__carousel-wrap">
+      <div class="kios__carousel" id="kiosCarousel" tabindex="0" aria-label="Galeri kios Kopi Nusantara, geser untuk melihat lebih banyak">
 
-  if (openAuthModalBtn) openAuthModalBtn.addEventListener('click', function () { openAuthModal('login'); });
-  document.querySelectorAll('[data-auth-close]').forEach(function (el) {
-    el.addEventListener('click', closeAuthModal);
-  });
-  if (authModal) {
-    authModal.querySelectorAll('[data-auth-tab]').forEach(function (btn) {
-      btn.addEventListener('click', function () { switchAuthTab(btn.getAttribute('data-auth-tab')); });
-    });
-  }
-  document.addEventListener('keydown', function (e) {
-    if (e.key !== 'Escape') return;
-    closeAuthModal();
-    closeAccountDropdown();
-  });
+        <article class="kios-slide">
+          <div class="kios-slide__img">
+            <img src="assets/images/kios-01.jpg" alt="Kios Kopi Nusantara 01" loading="lazy" onerror="this.closest('.kios-slide').style.display='none'">
+          </div>
+          <p class="kios-slide__label">Kios 01</p>
+        </article>
 
-  /* =======================================================
-     6. GOOGLE LOGIN
-  ======================================================= */
-  if (googleAuthBtn) {
-    googleAuthBtn.addEventListener('click', function () {
-      if (googleAuthBtn.classList.contains('is-loading')) return;
-      setButtonLoading(googleAuthBtn, true);
-      var provider = new GoogleAuthProvider();
-      signInWithPopup(auth, provider)
-        .then(function (result) {
-          // Akun/login lewat Firebase Auth sudah sah sampai titik ini.
-          // Kalau penulisan profile ke Firestore gagal (mis. rules belum
-          // di-publish), itu TIDAK BOLEH membuat login terlihat gagal —
-          // ditangkap terpisah di bawah, tidak ikut menjatuhkan promise ini.
-          return ensureUserDocument(result.user, 'google')
-            .catch(function (docErr) {
-              console.error('Login Google berhasil, tapi gagal menyimpan profile Firestore:', docErr);
-            })
-            .then(function () { return result.user; });
-        })
-        .then(function (user) {
-          // Firebase Auth berhasil, TAPI login belum dianggap selesai:
-          // hanya @gmail.com yang didukung, dan bahkan itu masih harus
-          // lolos verifikasi kode OTP sebelum dianggap sah di level aplikasi.
-          if (!GMAIL_DOMAIN_RE.test(user.email || '')) {
-            return signOut(auth).then(function () {
-              return Promise.reject({ message: 'Hanya akun Gmail (@gmail.com) yang didukung untuk login Google.' });
-            });
-          }
-          // requestOtp() membuka panel OTP di modal yang sama — toast
-          // sukses & penutupan modal ditunda sampai kode benar-benar
-          // diverifikasi (lihat submit handler otpForm).
-          return requestOtp(user, 'Berhasil masuk dengan Google.');
-        })
-        .catch(function (err) {
-          showToast((err && err.message) || friendlyError(err), 'error');
-        })
-        .finally(function () {
-          setButtonLoading(googleAuthBtn, false);
-        });
-    });
-  }
+        <article class="kios-slide">
+          <div class="kios-slide__img">
+            <img src="assets/images/kios-02.jpg" alt="Kios Kopi Nusantara 02" loading="lazy" onerror="this.closest('.kios-slide').style.display='none'">
+          </div>
+          <p class="kios-slide__label">Kios 02</p>
+        </article>
 
-  /* =======================================================
-     7. EMAIL/PASSWORD LOGIN
-  ======================================================= */
-  if (loginForm) {
-    loginForm.addEventListener('submit', function (e) {
-      e.preventDefault();
-      if (loginSubmitBtn.classList.contains('is-loading')) return;
-      setFormError(loginError, '');
-      var email = document.getElementById('loginEmail').value.trim();
-      var password = document.getElementById('loginPassword').value;
+        <article class="kios-slide">
+          <div class="kios-slide__img">
+            <img src="assets/images/kios-03.jpg" alt="Kios Kopi Nusantara 03" loading="lazy" onerror="this.closest('.kios-slide').style.display='none'">
+          </div>
+          <p class="kios-slide__label">Kios 03</p>
+        </article>
 
-      if (!GMAIL_DOMAIN_RE.test(email)) {
-        setFormError(loginError, 'Hanya email Gmail (@gmail.com) yang didukung.');
-        return;
-      }
+        <article class="kios-slide">
+          <div class="kios-slide__img">
+            <img src="assets/images/kios-04.jpg" alt="Kios Kopi Nusantara 04" loading="lazy" onerror="this.closest('.kios-slide').style.display='none'">
+          </div>
+          <p class="kios-slide__label">Kios 04</p>
+        </article>
 
-      setButtonLoading(loginSubmitBtn, true);
-      signInWithEmailAndPassword(auth, email, password)
-        .then(function (result) {
-          // Firebase Auth berhasil, TAPI login belum dianggap selesai —
-          // sama seperti Google: harus lolos verifikasi kode OTP dulu
-          // (lihat window.KopiAuth.isAuthenticated).
-          return requestOtp(result.user, 'Berhasil masuk.');
-        })
-        .catch(function (err) {
-          setFormError(loginError, (err && err.message) || friendlyError(err));
-        })
-        .finally(function () {
-          setButtonLoading(loginSubmitBtn, false);
-        });
-    });
-  }
+      </div>
 
-  /* =======================================================
-     8. EMAIL/PASSWORD REGISTER
-  ======================================================= */
-  if (registerForm) {
-    registerForm.addEventListener('submit', function (e) {
-      e.preventDefault();
-      if (registerSubmitBtn.classList.contains('is-loading')) return;
-      setFormError(registerError, '');
-      var name = document.getElementById('registerName').value.trim();
-      var email = document.getElementById('registerEmail').value.trim();
-      var password = document.getElementById('registerPassword').value;
-      var confirmPassword = document.getElementById('registerConfirmPassword').value;
+      <div class="carousel-nav">
+        <button class="carousel-nav__btn" data-carousel-prev="kios" aria-label="Kios sebelumnya">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <button class="carousel-nav__btn" data-carousel-next="kios" aria-label="Kios berikutnya">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
 
-      if (password !== confirmPassword) {
-        setFormError(registerError, 'Konfirmasi password tidak cocok.');
-        return;
-      }
-      if (!GMAIL_DOMAIN_RE.test(email)) {
-        setFormError(registerError, 'Hanya email Gmail (@gmail.com) yang didukung.');
-        return;
-      }
+  <!-- ============ LOKASI ============ -->
+  <section class="location" id="lokasi" aria-label="Lokasi Pusat Kopi Nusantara">
+    <div class="section-head">
+      <p class="eyebrow reveal" data-reveal>Lokasi</p>
+      <h2 class="reveal" data-reveal>Lokasi Pusat Kopi Nusantara</h2>
+      <p class="section-head__desc reveal" data-reveal>
+        Temukan pusat Kopi Nusantara dan kunjungi kami secara langsung.
+      </p>
+    </div>
 
-      setButtonLoading(registerSubmitBtn, true);
-      var createdUser = null;
-      createUserWithEmailAndPassword(auth, email, password)
-        .then(function (result) {
-          createdUser = result.user;
-          return name ? updateProfile(createdUser, { displayName: name }) : Promise.resolve();
-        })
-        .then(function () {
-          // Sama seperti Google login: akun sudah pasti berhasil dibuat di
-          // titik ini. Kegagalan Firestore (rules/permission) ditangkap
-          // terpisah supaya tidak membuat registrasi terlihat gagal.
-          return ensureUserDocument(
-            { uid: createdUser.uid, displayName: name || createdUser.displayName, email: createdUser.email, photoURL: createdUser.photoURL },
-            'password'
-          ).catch(function (docErr) {
-            console.error('Akun berhasil dibuat, tapi gagal menyimpan profile Firestore:', docErr);
-          });
-        })
-        .then(function () {
-          // Akun sudah dibuat, TAPI belum dianggap login penuh — harus
-          // lolos verifikasi kode OTP dulu, sama seperti login/Google.
-          showToast('Akun berhasil dibuat. Silakan verifikasi kode OTP.', 'success');
-          return requestOtp(createdUser, 'Akun berhasil dibuat dan diverifikasi. Selamat datang!');
-        })
-        .catch(function (err) {
-          setFormError(registerError, (err && err.message) || friendlyError(err));
-        })
-        .finally(function () {
-          setButtonLoading(registerSubmitBtn, false);
-        });
-    });
-  }
+    <div class="location__wrap reveal" data-reveal>
+      <div class="location__map">
+        <iframe
+          src="https://www.google.com/maps?q=-6.309000,106.994600&z=17&output=embed"
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+          allowfullscreen
+          title="Peta lokasi Pusat Kopi Nusantara">
+        </iframe>
+      </div>
 
-  /* =======================================================
-     9. LOGOUT
-  ======================================================= */
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', function () {
-      if (logoutBtn.classList.contains('is-loading')) return;
-      setButtonLoading(logoutBtn, true);
-      pendingAfterAuth = null;
-      signOut(auth)
-        .then(function () {
-          showToast('Anda telah keluar.', 'info');
-          closeAccountDropdown();
-        })
-        .catch(function (err) {
-          showToast(friendlyError(err), 'error');
-        })
-        .finally(function () {
-          setButtonLoading(logoutBtn, false);
-        });
-    });
-  }
+      <div class="location__info">
+        <p class="eyebrow">Kunjungi Kami</p>
+        <h3>Pusat Kopi Nusantara</h3>
+        <p class="location__address">Bantargebang, Bekasi, Jawa Barat</p>
+        <p class="location__coords">Koordinat: -6.309000, 106.994600</p>
+        <p class="location__whatsapp">
+          WhatsApp: <a href="https://wa.me/6285122108079" target="_blank" rel="noopener noreferrer">wa.me/6285122108079
+        <div class="location__actions">
+          <a href="https://maps.app.goo.gl/Qg8MYNNN2apK3epp6" target="_blank" rel="noopener noreferrer" class="btn btn--gold">Lihat di Google Maps</a>
+          <a href="https://wa.me/6285122108079" target="_blank" rel="noopener noreferrer" class="btn btn--ghost">Chat via WhatsApp</a>
+        </div>
+      </div>
+    </div>
+  </section>
 
-  /* =======================================================
-     10. REACTIVE AUTH STATE
-     Fires on load (session restore), and on every login/logout.
-  ======================================================= */
-  function refreshOtpVerificationState(user) {
-    if (!user) {
-      otpVerificationState = { uid: null, verified: false };
-      return;
-    }
-    if (!GMAIL_DOMAIN_RE.test(user.email || '')) {
-      // Sesi lama (dari sebelum fitur Gmail-only OTP ini ada) dengan email
-      // bukan @gmail.com — tidak didukung alur ini, jadi keluarkan otomatis.
-      signOut(auth).then(function () {
-        showToast('Hanya akun Gmail (@gmail.com) yang didukung. Silakan masuk ulang.', 'error');
-      });
-      return;
-    }
-    // Berlaku untuk SEMUA provider (Email/Password, Register, Google) —
-    // server-side verified session (api/check-verified.js) adalah satu-
-    // satunya source of truth, bukan sekadar Firebase currentUser.
-    user.getIdToken().then(function (idToken) {
-      return fetch('/api/check-verified', { headers: { Authorization: 'Bearer ' + idToken } });
-    }).then(function (resp) { return resp.json(); })
-      .then(function (data) {
-        otpVerificationState = { uid: user.uid, verified: !!(data && data.verified) };
-      })
-      .catch(function () {
-        otpVerificationState = { uid: user.uid, verified: false };
-      });
-  }
+  <!-- ============ IMMERSIVE COFFEE MOMENT ============ -->
+  <section class="moment reveal" data-reveal aria-label="Momen kopi">
+    <div class="moment__media">
+      <img src="assets/images/hero.jpg" alt="Suasana menikmati kopi dengan tenang" loading="lazy">
+      <div class="moment__overlay"></div>
+    </div>
+    <blockquote class="moment__quote">
+      <p>“Kopi bukan sekadar minuman —<br>ia adalah cara sederhana untuk merasakan sebuah tempat.”</p>
+    </blockquote>
+  </section>
 
-  onAuthStateChanged(auth, function (user) {
-    renderAuthUI(user);
-    refreshOtpVerificationState(user);
-  });
+  <!-- ============ JURNAL / JOURNAL (editorial layout) ============ -->
+  <section class="journal" id="blog" aria-label="Jurnal kopi">
+    <div class="section-head section-head--left">
+      <p class="eyebrow reveal" data-reveal>Jurnal</p>
+      <h2 class="reveal" data-reveal>Jelajahi Dunia Kopi</h2>
+    </div>
 
-})();
+    <div class="journal__list">
+      <a href="https://coffeeland.co.id/mengenal-kopi-aceh-gayo/" target="_blank" rel="noopener noreferrer" class="journal__row reveal" data-reveal data-journal-row>
+        <span class="journal__index">01</span>
+        <div class="journal__media">
+          <img src="assets/images/blog-1.jpg" alt="Ilustrasi artikel Mengenal Kopi Gayo" loading="lazy">
+        </div>
+        <div class="journal__body">
+          <p class="journal__meta"><span>Asal Kopi</span><time>12 Agu 2026</time></p>
+          <h3 class="journal__title">Mengenal Kopi Gayo</h3>
+          <p class="journal__desc">Menelusuri dataran tinggi Aceh, tempat lahirnya salah satu Arabika paling dihormati di dunia.</p>
+          <span class="journal__link">Baca Selengkapnya <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </div>
+      </a>
+
+      <a href="https://www.aeki-aice.org/mengenal-perbedaan-kopi-robusta-dan-arabika/" target="_blank" rel="noopener noreferrer" class="journal__row reveal" data-reveal data-journal-row>
+        <span class="journal__index">02</span>
+        <div class="journal__media">
+          <img src="assets/images/blog-2.jpg" alt="Ilustrasi artikel Mengenal Arabika dan Robusta" loading="lazy">
+        </div>
+        <div class="journal__body">
+          <p class="journal__meta"><span>Pengetahuan</span><time>03 Agu 2026</time></p>
+          <h3 class="journal__title">Mengenal Arabika &amp; Robusta</h3>
+          <p class="journal__desc">Dua jenis kopi, dua karakter berbeda — memahami mana yang cocok dengan cara Anda menyeduh.</p>
+          <span class="journal__link">Baca Selengkapnya <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </div>
+      </a>
+
+      <a href="https://www.liputan6.com/hot/read/5933109/sejarah-kopi-indonesia-dari-batavia-hingga-jadi-raja-ekspor" target="_blank" rel="noopener noreferrer" class="journal__row reveal" data-reveal data-journal-row>
+        <span class="journal__index">03</span>
+        <div class="journal__media">
+          <img src="assets/images/blog-3.jpg" alt="Ilustrasi artikel Perjalanan Kopi Nusantara" loading="lazy">
+        </div>
+        <div class="journal__body">
+          <p class="journal__meta"><span>Cerita</span><time>27 Jul 2026</time></p>
+          <h3 class="journal__title">Perjalanan Kopi Nusantara</h3>
+          <p class="journal__desc">Dari kebun kecil di pelosok daerah hingga secangkir kopi di meja Anda — sebuah perjalanan panjang.</p>
+          <span class="journal__link">Baca Selengkapnya <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </div>
+      </a>
+    </div>
+  </section>
+
+  <!-- ============ TESTIMONIAL ============ -->
+  <!-- CATATAN: rating & ulasan di bawah adalah data dummy UI, akan diganti data asli dari database. -->
+  <section class="testimonial" aria-label="Ulasan pelanggan">
+    <div class="section-head">
+      <p class="eyebrow reveal" data-reveal>Cerita Pelanggan</p>
+      <h2 class="reveal" data-reveal>Apa Kata Mereka</h2>
+    </div>
+
+    <div class="testimonial__wrap reveal" data-reveal>
+      <div class="testimonial__track" id="testimonialTrack" data-testimonial-list>
+        <!-- diisi oleh script.js dari DUMMY_TESTIMONIALS -->
+      </div>
+      <div class="testimonial__dots" id="testimonialDots" aria-hidden="true"></div>
+    </div>
+  </section>
+
+  <!-- ============ FINAL CTA ============ -->
+  <section class="final-cta reveal" data-reveal aria-label="Ajakan menjelajahi kopi">
+    <h2>Temukan Kopi Nusantara<br>Favoritmu.</h2>
+    <a href="#produk" class="btn btn--gold">Jelajahi Semua Kopi</a>
+  </section>
+
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer class="footer" id="kontak">
+  <div class="footer__top">
+    <div class="footer__brand">
+      <div class="footer__brand-media">
+        <video
+          class="footer__video"
+          autoplay
+          muted
+          loop
+          playsinline
+          preload="metadata"
+          aria-label="Video Kopi Nusantara">
+          <source src="assets/videos/footer.mp4" type="video/mp4">
+        </video>
+      </div>
+      <p>Biji kopi pilihan dari berbagai daerah Indonesia, dikirim untuk menemani setiap momen Anda.</p>
+    </div>
+
+    <div class="footer__col">
+      <h4>Navigasi</h4>
+      <a href="#home">Home</a>
+      <a href="#produk">Produk</a>
+      <a href="#tentang">Tentang Kami</a>
+      <a href="#lokasi">Lokasi</a>
+      <a href="#blog">Blog</a>
+    </div>
+
+    <div class="footer__col">
+      <h4>Kontak</h4>
+      <a href="mailto:kopinusantarasite@gmail.com">kopinusantarasite@gmail.com</a>
+      <a href="https://wa.me/6285122108079" target="_blank" rel="noopener noreferrer">wa.me/6285122108079</a>
+      <a href="#" data-placeholder>Jakarta, Indonesia</a>
+    </div>
+
+    <div class="footer__col">
+      <h4>Sosial Media</h4>
+      <a href="#" data-placeholder>Instagram</a>
+      <a href="#" data-placeholder>TikTok</a>
+      <a href="https://wa.me/6285122108079" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+    </div>
+  </div>
+
+  <div class="footer__bottom">
+    <p>&copy; <span id="year"></span> Kopi Nusantara. Seluruh hak cipta dilindungi.</p>
+    <a href="#home" class="footer__totop" data-nav>Kembali ke Atas
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+    </a>
+  </div>
+</footer>
+
+<!-- ============ PRODUCT DETAIL MODAL ============ -->
+<div class="product-modal" id="productModal" aria-hidden="true">
+  <div class="product-modal__backdrop" data-modal-close></div>
+  <div class="product-modal__panel" role="dialog" aria-modal="true" aria-labelledby="modalProductName">
+    <button class="product-modal__close" type="button" data-modal-close aria-label="Tutup detail produk">&times;</button>
+    <div class="product-modal__media">
+      <img id="modalImage" src="" alt="">
+    </div>
+    <div class="product-modal__body">
+      <p class="product-modal__origin" id="modalOrigin"></p>
+      <h3 id="modalProductName"></h3>
+      <p class="product-modal__type" id="modalType"></p>
+      <p class="product-modal__rating" id="modalRating"></p>
+      <div class="product-modal__description">
+        <span class="product-modal__description-label">Tentang Kopi Ini</span>
+        <p id="modalDescription"></p>
+      </div>
+      <div class="product-modal__weights" id="modalWeights" role="group" aria-label="Pilih berat"></div>
+      <div class="product-modal__footer">
+        <span class="product-modal__price" id="modalPrice"></span>
+        <button class="btn btn--primary" type="button" id="modalAddCart">Tambah ke Keranjang</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ CART DRAWER ============ -->
+<div class="cart-drawer" id="cartDrawer" aria-hidden="true">
+  <div class="cart-drawer__backdrop" data-cart-close></div>
+  <div class="cart-drawer__panel" role="dialog" aria-modal="true" aria-label="Keranjang belanja">
+    <div class="cart-drawer__head">
+      <h3>Keranjang Anda</h3>
+      <button class="cart-drawer__close" type="button" data-cart-close aria-label="Tutup keranjang">&times;</button>
+    </div>
+    <div class="cart-drawer__items" id="cartItems"></div>
+    <div class="cart-drawer__footer" id="cartFooter">
+      <div class="cart-drawer__subtotal"><span>Subtotal</span><strong id="cartSubtotal">Rp 0</strong></div>
+      <button class="btn btn--gold cart-drawer__checkout" type="button" id="cartCheckoutBtn">Checkout</button>
+      <p class="cart-drawer__note">Masuk untuk checkout — pesanan dikonfirmasi lewat WhatsApp.</p>
+    </div>
+
+    <!-- Checkout summary — shown after the authentication gate passes.
+         Cart contents are re-rendered here (read-only) from the same
+         cartState in script.js; nothing is duplicated or re-entered. -->
+    <div class="checkout-view" id="checkoutView" hidden>
+      <button type="button" class="checkout-view__back" id="checkoutBackBtn">&larr; Kembali ke keranjang</button>
+      <div class="checkout-view__items" id="checkoutItems"></div>
+      <div class="checkout-view__account">
+        <p class="checkout-view__account-label">Dipesan sebagai</p>
+        <p class="checkout-view__account-name" id="checkoutUserName"></p>
+        <p class="checkout-view__account-email" id="checkoutUserEmail"></p>
+      </div>
+      <div class="checkout-view__subtotal"><span>Subtotal</span><strong id="checkoutSubtotal">Rp 0</strong></div>
+
+      <div class="payment-method" role="radiogroup" aria-label="Metode Pembayaran">
+        <p class="payment-method__label">Metode Pembayaran</p>
+        <div class="payment-method__options">
+          <button type="button" class="payment-method__option is-selected" id="paymentOptionWhatsapp" data-payment-method="whatsapp" role="radio" aria-checked="true">
+            <span class="payment-method__radio"></span>
+            <span>WhatsApp</span>
+          </button>
+          <button type="button" class="payment-method__option" id="paymentOptionQris" data-payment-method="qris" role="radio" aria-checked="false">
+            <span class="payment-method__radio"></span>
+            <span>QRIS</span>
+          </button>
+        </div>
+      </div>
+
+      <a href="#" class="btn btn--gold checkout-view__submit" id="checkoutWhatsappBtn" target="_blank" rel="noopener noreferrer">Pesan via WhatsApp</a>
+      <p class="cart-drawer__note" id="checkoutWhatsappNote">Tim kami akan mengonfirmasi pesanan dan pembayaran melalui WhatsApp.</p>
+
+      <div class="qris-panel" id="qrisPanel" hidden>
+        <p class="qris-panel__instruction">Silakan scan QRIS di bawah ini.</p>
+        <div class="qris-panel__image-wrap">
+          <img src="assets/images/qris.jpg" alt="Kode QRIS pembayaran" class="qris-panel__image">
+        </div>
+        <p class="qris-panel__instruction">Setelah pembayaran berhasil, kirim bukti transaksi kepada owner.</p>
+        <a href="#" class="btn btn--gold checkout-view__submit" id="checkoutQrisProofBtn" target="_blank" rel="noopener noreferrer">Kirim Bukti Transaksi ke Owner</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ AUTHENTICATION EXPERIENCE (full-screen) ============ -->
+<div class="auth-screen" id="authModal" aria-hidden="true">
+  <div class="auth-screen__backdrop" data-auth-close></div>
+  <div class="auth-screen__frame">
+    <div class="auth-screen__panel-wrap" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+      <button class="auth-screen__close" type="button" data-auth-close aria-label="Tutup">&times;</button>
+
+      <div class="auth-screen__visual" aria-hidden="true">
+        <video class="auth-screen__visual-media auth-screen__visual-media--desktop" src="assets/videos/auth-desktop.mp4" autoplay muted loop playsinline preload="metadata"></video>
+        <video class="auth-screen__visual-media auth-screen__visual-media--mobile" src="assets/videos/auth-mobile.mp4" autoplay muted loop playsinline preload="metadata"></video>
+        <div class="auth-screen__visual-overlay"></div>
+        <div class="auth-screen__visual-content">
+          <p class="eyebrow">Kopi Nusantara</p>
+          <h2 class="auth-screen__visual-title">Satu akun,<br>seluruh rasa Nusantara.</h2>
+          <p class="auth-screen__visual-quote">Masuk untuk melanjutkan checkout, menyimpan preferensi, dan melacak pesanan Anda.</p>
+        </div>
+      </div>
+
+      <div class="auth-screen__panel">
+        <div class="auth-screen__head">
+          <p class="eyebrow">Selamat Datang</p>
+          <h3 id="authModalTitle">Masuk ke Akun Anda</h3>
+        </div>
+
+        <p class="auth-screen__context" id="authContextNote" hidden>Masuk terlebih dahulu untuk melanjutkan checkout — keranjang Anda tetap tersimpan.</p>
+
+        <div class="auth-screen__tabs" role="tablist" aria-label="Pilih masuk atau daftar">
+          <button type="button" class="auth-tab is-active" data-auth-tab="login" role="tab" aria-selected="true">Masuk</button>
+          <button type="button" class="auth-tab" data-auth-tab="register" role="tab" aria-selected="false">Daftar</button>
+        </div>
+
+        <button type="button" class="auth-google-btn" id="googleAuthBtn">
+          <span class="auth-submit__label">
+            <svg class="auth-google-btn__icon" viewBox="0 0 48 48" aria-hidden="true">
+              <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.4 29.3 35 24 35c-6.1 0-11.3-3.3-13.6-8.1H4.6C7.6 34.5 15 40 24 40c11 0 20-9 20-20 0-1.2-.1-2.4-.4-3.5z"/>
+              <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.1 8.1 3l5.7-5.7C34.6 7 29.6 5 24 5c-7.6 0-14.1 4.3-17.7 10.7z"/>
+              <path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.7 13.6-4.6l-6.3-5.3C29.2 35.6 26.7 36.5 24 36.5c-5.3 0-9.7-3.4-11.3-8.1l-6.6 5.1C9.8 39.6 16.3 44 24 44z"/>
+              <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.6l6.3 5.3C40.9 36.4 44 30.7 44 24c0-1.2-.1-2.4-.4-3.5z"/>
+            </svg>
+            Lanjutkan dengan Google
+          </span>
+          <span class="auth-submit__spinner" aria-hidden="true"></span>
+        </button>
+
+        <div class="auth-divider"><span>atau</span></div>
+
+        <form class="auth-form" id="loginForm" data-auth-panel="login" novalidate>
+          <label class="auth-field">
+            <span>Email</span>
+            <input type="email" id="loginEmail" required autocomplete="email" placeholder="nama@email.com">
+          </label>
+          <label class="auth-field">
+            <span>Password</span>
+            <input type="password" id="loginPassword" required autocomplete="current-password" placeholder="Minimal 6 karakter">
+          </label>
+          <p class="auth-form__error" id="loginError" hidden></p>
+          <button type="submit" class="btn btn--espresso auth-submit" id="loginSubmitBtn">
+            <span class="auth-submit__label">Masuk</span>
+            <span class="auth-submit__spinner" aria-hidden="true"></span>
+          </button>
+        </form>
+
+        <form class="auth-form" id="registerForm" data-auth-panel="register" novalidate hidden>
+          <label class="auth-field">
+            <span>Nama</span>
+            <input type="text" id="registerName" required autocomplete="name" placeholder="Nama Anda">
+          </label>
+          <label class="auth-field">
+            <span>Email</span>
+            <input type="email" id="registerEmail" required autocomplete="email" placeholder="nama@email.com">
+          </label>
+          <label class="auth-field">
+            <span>Password</span>
+            <input type="password" id="registerPassword" required autocomplete="new-password" placeholder="Minimal 6 karakter">
+          </label>
+          <label class="auth-field">
+            <span>Konfirmasi Password</span>
+            <input type="password" id="registerConfirmPassword" required autocomplete="new-password" placeholder="Ulangi password">
+          </label>
+          <p class="auth-form__error" id="registerError" hidden></p>
+          <button type="submit" class="btn btn--espresso auth-submit" id="registerSubmitBtn">
+            <span class="auth-submit__label">Daftar</span>
+            <span class="auth-submit__spinner" aria-hidden="true"></span>
+          </button>
+        </form>
+
+        <form class="auth-form otp-form" id="otpForm" data-auth-panel="otp" novalidate hidden>
+          <p class="otp-instructions">Kode telah dikirim ke <strong id="otpMaskedEmail">-</strong></p>
+          <p class="otp-hint">Tidak melihat email-nya? Cek folder <strong>Spam/Promosi</strong>, atau tunggu beberapa saat — kode juga akan masuk ke <strong>Kotak Masuk</strong> utama.</p>
+          <div class="otp-inputs">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="1" class="otp-box" aria-label="Digit 1">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="1" class="otp-box" aria-label="Digit 2">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="1" class="otp-box" aria-label="Digit 3">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="1" class="otp-box" aria-label="Digit 4">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="1" class="otp-box" aria-label="Digit 5">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="1" class="otp-box" aria-label="Digit 6">
+          </div>
+          <p class="auth-form__error" id="otpError" hidden></p>
+          <button type="submit" class="btn btn--espresso auth-submit" id="otpVerifyBtn">
+            <span class="auth-submit__label">Verifikasi</span>
+            <span class="auth-submit__spinner" aria-hidden="true"></span>
+          </button>
+          <button type="button" class="auth-otp-resend" id="otpResendBtn" disabled>Kirim ulang dalam <span>60</span> detik</button>
+        </form>
+      </div>
+
+      <!-- Glass OTP animation: shown only after the server accepts the OTP (js/auth.js) -->
+      <div class="otp-glass" id="otpGlass" aria-hidden="true">
+        <div class="otp-glass__card" role="status" aria-live="polite">
+          <div class="otp-glass__wash"></div>
+          <div class="otp-glass__badge-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6l7-3z"/><path d="M9 12l2.2 2.2L15.5 10"/></svg>
+          </div>
+          <h4 class="otp-glass__title" id="otpGlassTitle">Verifying...</h4>
+          <p class="otp-glass__sub" id="otpGlassSub">Memeriksa kode keamanan Anda</p>
+          <div class="otp-glass__stage" aria-hidden="true">
+            <div class="otp-glass__ring"></div>
+            <div class="otp-glass__box">
+              <svg class="otp-glass__check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+            </div>
+          </div>
+          <div class="otp-glass__status">
+            <span class="otp-glass__status-text otp-glass__status-text--busy">Verifying<span class="otp-glass__dots"><span>.</span><span>.</span><span>.</span></span></span>
+            <span class="otp-glass__status-text otp-glass__status-text--done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6l7-3z"/><path d="M9 12l2.2 2.2L15.5 10"/></svg>Verified &amp; Secured</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TOAST NOTIFICATIONS ============ -->
+<div class="toast-stack" id="toastStack" aria-live="polite" aria-atomic="true"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="script.js"></script>
+<script src="motion.js"></script>
+<script type="module" src="js/firebase-init.js"></script>
+<script type="module" src="js/auth.js"></script>
+</body>
+</html>
