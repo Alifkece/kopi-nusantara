@@ -219,22 +219,41 @@ import {
   var authDividerEl = authModal ? authModal.querySelector('.auth-divider') : null;
 
   /* =======================================================
-     5a. AUTH VIDEO — autoplay WITH sound, no duplicates
-     Both <video> elements ship muted+autoplay+loop in the HTML (so they
-     always autoplay silently, even before this script runs). This script
-     only adds sound: right when the modal actually opens (i.e. inside a
-     user click), it unmutes whichever one is currently visible (mobile vs
-     desktop, picked with the same 861px breakpoint the CSS uses) and calls
-     play() again — required because merely removing "muted" doesn't make
-     a browser start playing audio without a fresh play() call tied to a
-     user gesture. The other (inactive) video is paused/reset so only one
-     video is ever producing sound. On close, both are paused and reset to
-     0 so the next open always starts a single, fresh playback instead of
-     stacking another one on top.
+     5a. AUTH VIDEO + LIFECYCLE MODAL
+     Dua <video> berbagi container visual; TEPAT satu yang tampil per
+     breakpoint (CSS: >=861px desktop, <=860px mobile — breakpoint yang
+     sama dipakai di sini). Hanya video aktif yang diputar; yang tidak
+     aktif di-pause. Tidak ada autoplay di HTML, jadi tidak ada video
+     yang berjalan diam-diam saat modal tertutup.
+
+     Suara: play() dicoba dengan suara (kita ada di dalam klik user);
+     kalau browser menolak (autoplay policy), otomatis diulang dalam
+     keadaan muted — video TIDAK PERNAH dibiarkan diam/freeze. Kalau
+     muted pun ditolak (mis. mode hemat daya iOS), diputar ulang pada
+     sentuhan pertama di dalam modal.
+
+     Saat ditutup: suara langsung dimatikan, tetapi video baru di-pause
+     + di-rewind SETELAH animasi tutup selesai (kalau tidak, video
+     terlihat loncat ke frame 0 di tengah fade).
   ======================================================= */
   var authVisualDesktop = authModal ? authModal.querySelector('.auth-screen__visual-media--desktop') : null;
   var authVisualMobile = authModal ? authModal.querySelector('.auth-screen__visual-media--mobile') : null;
   var authDesktopMQ = window.matchMedia('(min-width: 861px)');
+  var authVideoToken = 0;
+  var authVideoStopTimer = null;
+  var authVideoRetryArmed = false;
+
+  function isAuthOpen() { return !!(authModal && authModal.classList.contains('is-open')); }
+  // Durasi animasi dibaca dari CSS (--auth-close / --auth-open) supaya JS & CSS selalu sinkron.
+  function authCssMs(name, fallback) {
+    try {
+      var v = window.getComputedStyle(authModal).getPropertyValue(name).trim();
+      if (!v) return fallback;
+      var n = parseFloat(v);
+      if (isNaN(n)) return fallback;
+      return /ms$/.test(v) ? n : n * 1000;
+    } catch (e) { return fallback; }
+  }
 
   function getActiveAuthVideo() {
     return authDesktopMQ.matches ? authVisualDesktop : authVisualMobile;
@@ -242,40 +261,96 @@ import {
   function getInactiveAuthVideo() {
     return authDesktopMQ.matches ? authVisualMobile : authVisualDesktop;
   }
-  function resetAuthVideo(video) {
+  function pauseAuthVideo(video, rewind) {
     if (!video) return;
-    video.pause();
-    try { video.currentTime = 0; } catch (e) { /* ignore — not seekable yet */ }
+    try { video.pause(); } catch (e) { /* ignore */ }
+    if (rewind) {
+      try { video.currentTime = 0; } catch (e) { /* belum seekable — abaikan */ }
+    }
   }
-  function playActiveAuthVideo() {
-    resetAuthVideo(getInactiveAuthVideo());
-    var active = getActiveAuthVideo();
-    if (!active) return;
-    active.muted = false;
-    active.loop = true;
-    var playPromise = active.play();
+
+  // Video baru terlihat (fade-in) setelah frame pertamanya siap; sebelum itu
+  // yang tampil adalah gambar fallback container, bukan kotak kosong.
+  [authVisualDesktop, authVisualMobile].forEach(function (v) {
+    if (!v) return;
+    var markReady = function () { v.classList.add('is-ready'); };
+    v.addEventListener('loadeddata', markReady);
+    v.addEventListener('playing', markReady);
+    v.addEventListener('error', function () { v.classList.remove('is-ready'); });
+    v.loop = true;
+    v.muted = true;
+    if (v.readyState >= 2) markReady();
+  });
+
+  function armAuthVideoRetry() {
+    if (authVideoRetryArmed || !authModal) return;
+    authVideoRetryArmed = true;
+    var retry = function () {
+      authVideoRetryArmed = false;
+      authModal.removeEventListener('pointerdown', retry, true);
+      authModal.removeEventListener('keydown', retry, true);
+      if (!isAuthOpen()) return;
+      var v = getActiveAuthVideo();
+      if (v && v.paused) tryPlayAuthVideo(v, authVideoToken, false);
+    };
+    authModal.addEventListener('pointerdown', retry, true);
+    authModal.addEventListener('keydown', retry, true);
+  }
+
+  function tryPlayAuthVideo(video, token, withSound) {
+    video.muted = !withSound;
+    var playPromise;
+    try { playPromise = video.play(); } catch (e) { playPromise = null; }
     if (playPromise && typeof playPromise.catch === 'function') {
-      playPromise.catch(function () {
-        // Browser blocked the unmuted play() (rare — this only runs right
-        // after a user click). Fail silently rather than log a console error.
+      playPromise.catch(function (err) {
+        if (token !== authVideoToken || !isAuthOpen()) return; // modal sudah ditutup / play baru sudah dimulai
+        if (err && err.name === 'AbortError') return;            // diinterupsi pause(), bukan diblokir policy
+        if (withSound) tryPlayAuthVideo(video, token, false);    // suara diblokir -> putar muted
+        else armAuthVideoRetry();                                // muted pun diblokir -> coba lagi saat disentuh
       });
     }
   }
-  function stopAllAuthVideos() {
-    resetAuthVideo(authVisualDesktop);
-    resetAuthVideo(authVisualMobile);
+
+  function playActiveAuthVideo() {
+    if (authVideoStopTimer) { window.clearTimeout(authVideoStopTimer); authVideoStopTimer = null; }
+    pauseAuthVideo(getInactiveAuthVideo(), true); // video yang tidak tampil tidak boleh jalan
+    var active = getActiveAuthVideo();
+    if (!active) return;
+    var token = ++authVideoToken;
+    active.loop = true;
+    if (active.paused) {
+      try { active.currentTime = 0; } catch (e) { /* belum seekable — abaikan */ }
+    }
+    tryPlayAuthVideo(active, token, true);
   }
-  // If the viewport crosses the mobile/desktop breakpoint while the modal
-  // is already open (e.g. rotating a tablet), swap which video is playing
-  // instead of ever letting both run at once.
+
+  function stopAllAuthVideos() {
+    authVideoToken++; // batalkan penanganan play() yang masih menggantung
+    [authVisualDesktop, authVisualMobile].forEach(function (v) { if (v) v.muted = true; });
+    if (authVideoStopTimer) window.clearTimeout(authVideoStopTimer);
+    authVideoStopTimer = window.setTimeout(function () {
+      authVideoStopTimer = null;
+      pauseAuthVideo(authVisualDesktop, true);
+      pauseAuthVideo(authVisualMobile, true);
+    }, authCssMs('--auth-close', 280) + 80);
+  }
+
+  // Viewport melewati breakpoint saat modal terbuka (rotasi tablet, resize
+  // window): ganti video aktif dan hentikan yang lama.
   var handleAuthBreakpointChange = function () {
-    if (authModal && authModal.classList.contains('is-open')) playActiveAuthVideo();
+    if (isAuthOpen()) playActiveAuthVideo();
   };
   if (authDesktopMQ.addEventListener) {
     authDesktopMQ.addEventListener('change', handleAuthBreakpointChange);
   } else if (authDesktopMQ.addListener) {
     authDesktopMQ.addListener(handleAuthBreakpointChange);
   }
+  // Browser kadang mem-pause video saat tab di background / hemat daya.
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden || !isAuthOpen()) return;
+    var v = getActiveAuthVideo();
+    if (v && v.paused) tryPlayAuthVideo(v, authVideoToken, !v.muted);
+  });
 
   /* =======================================================
      5c. GMAIL OTP VERIFICATION (after ANY sign-in: Google,
@@ -430,8 +505,20 @@ import {
     });
   }
 
-  function showOtpPanel(maskedEmail) {
-    if (!authModal || !otpForm) return;
+  /* ---- State lifecycle modal (dipakai showOtpPanel / open / close / ganti tab) ---- */
+  var authPanelEl = authModal ? authModal.querySelector('.auth-screen__panel') : null;
+  var authEnterTimer = null;
+  var authFinalizeTimer = null;
+  var authCleanupPending = false;
+  var authPanelSwapTimer = null;
+
+  function focusFirstOtpBox() {
+    if (!otpBoxes[0]) return;
+    try { otpBoxes[0].focus({ preventScroll: true }); } catch (e) { otpBoxes[0].focus(); }
+  }
+
+  // Memasang tampilan panel OTP: sembunyikan tab / Google / pemisah / form login+daftar.
+  function applyOtpPanelView() {
     if (authModalTitle) authModalTitle.textContent = 'Verifikasi Email';
     if (authContextNote) authContextNote.hidden = true;
     if (authTabsEl) authTabsEl.hidden = true;
@@ -439,25 +526,51 @@ import {
     if (authDividerEl) authDividerEl.hidden = true;
     if (loginForm) loginForm.hidden = true;
     if (registerForm) registerForm.hidden = true;
+    otpForm.hidden = false;
+  }
+
+  function showOtpPanel(maskedEmail) {
+    if (!authModal || !otpForm) return;
     if (otpMaskedEmailEl) otpMaskedEmailEl.textContent = maskedEmail || '';
     setFormError(otpError, '');
     resetOtpGlass();
     otpBoxes.forEach(function (b) { b.value = ''; });
-    otpForm.hidden = false;
-    if (!authModal.classList.contains('is-open')) {
-      authModal.classList.add('is-open');
-      authModal.setAttribute('aria-hidden', 'false');
-      if (window.__kopiScrollLock) window.__kopiScrollLock.lock();
-      playActiveAuthVideo();
+    if (authPanelSwapTimer) { window.clearTimeout(authPanelSwapTimer); authPanelSwapTimer = null; }
+
+    // 1) Modal tertutup (mis. checkout meminta OTP): siapkan panel OTP lalu buka.
+    if (!isAuthOpen()) {
+      finalizeAuthClose();
+      applyOtpPanelView();
+      activateAuthShell();
+      focusFirstOtpBox();
+      return;
     }
-    if (otpBoxes[0]) otpBoxes[0].focus();
+    // 2) Panel OTP sudah tampil (kirim ulang kode): cukup kosongkan kotak.
+    if (!otpForm.hidden) { focusFirstOtpBox(); return; }
+    // 3) Modal terbuka di Masuk/Daftar: panel memudar sebentar, isinya diganti
+    //    saat tak terlihat, lalu memudar masuk — tanpa kilatan/blank.
+    if (prefersReducedMotion || !authPanelEl) {
+      applyOtpPanelView();
+      focusFirstOtpBox();
+      return;
+    }
+    cancelAuthTabSwitch();
+    authModal.classList.remove('is-entering');
+    authPanelEl.classList.add('is-swapping');
+    authPanelSwapTimer = window.setTimeout(function () {
+      authPanelSwapTimer = null;
+      if (!isAuthOpen()) { authPanelEl.classList.remove('is-swapping'); return; }
+      applyOtpPanelView();
+      void authPanelEl.offsetWidth; // pastikan isi baru ter-render (opacity 0) sebelum fade-in
+      authPanelEl.classList.remove('is-swapping');
+      focusFirstOtpBox();
+    }, 180);
   }
 
+  // Hanya bagian LOGIKA (langsung). Pemulihan tampilan (tab/Google/pemisah
+  // muncul lagi, form OTP disembunyikan) ditunda sampai animasi tutup selesai
+  // — lihat finalizeAuthClose() — supaya isi modal tidak berubah saat memudar.
   function hideOtpPanel() {
-    if (authTabsEl) authTabsEl.hidden = false;
-    if (googleAuthBtn) googleAuthBtn.hidden = false;
-    if (authDividerEl) authDividerEl.hidden = false;
-    if (otpForm) otpForm.hidden = true;
     stopResendCountdown();
     otpPendingUser = null;
   }
@@ -660,31 +773,67 @@ import {
     }
   }
 
-  function openAuthModal(tab, options) {
-    if (!authModal) return;
-    closeAccountDropdown();
-    switchAuthTab(tab || 'login');
-    if (authContextNote) authContextNote.hidden = !(options && options.fromCheckout);
-    if (authModal.classList.contains('is-open')) return; // sudah terbuka, cukup ganti tab/context di atas
-    authModal.classList.add('is-open');
+  // Satu-satunya tempat modal "menyala": dipakai openAuthModal & showOtpPanel.
+  function activateAuthShell() {
+    authModal.classList.add('is-open', 'is-entering');
     authModal.setAttribute('aria-hidden', 'false');
     if (window.__kopiScrollLock) window.__kopiScrollLock.lock();
     playActiveAuthVideo();
+    window.clearTimeout(authEnterTimer);
+    authEnterTimer = window.setTimeout(function () {
+      authEnterTimer = null;
+      authModal.classList.remove('is-entering'); // entrance selesai: hover/klik kembali normal
+    }, 900);
   }
-  function closeAuthModal() {
-    if (!authModal || !authModal.classList.contains('is-open')) return;
-    authModal.classList.remove('is-open');
-    authModal.setAttribute('aria-hidden', 'true');
-    if (window.__kopiScrollLock) window.__kopiScrollLock.unlock();
-    stopAllAuthVideos();
+
+  // Pembersihan VISUAL setelah modal benar-benar tak terlihat (animasi tutup
+  // selesai). Kalau modal dibuka lagi sebelum timer-nya jalan, openAuthModal /
+  // showOtpPanel memanggil ini lebih dulu supaya state selalu bersih.
+  function finalizeAuthClose() {
+    if (authFinalizeTimer) { window.clearTimeout(authFinalizeTimer); authFinalizeTimer = null; }
+    if (!authCleanupPending) return;
+    authCleanupPending = false;
+    if (isAuthOpen()) return;
     setFormError(loginError, '');
     setFormError(registerError, '');
     if (loginForm) loginForm.reset();
     if (registerForm) registerForm.reset();
-    cancelOtpGlass();
+    resetOtpGlass();
     hideAllPasswords();
+    // pulihkan bagian yang disembunyikan panel OTP
+    if (authTabsEl) authTabsEl.hidden = false;
+    if (googleAuthBtn) googleAuthBtn.hidden = false;
+    if (authDividerEl) authDividerEl.hidden = false;
+    if (otpForm) otpForm.hidden = true;
+    if (authPanelEl) authPanelEl.classList.remove('is-swapping');
+    cancelAuthTabSwitch();
+  }
+
+  function openAuthModal(tab, options) {
+    if (!authModal) return;
+    closeAccountDropdown();
+    var wasOpen = isAuthOpen();
+    if (!wasOpen) finalizeAuthClose();
+    switchAuthTab(tab || 'login');
+    if (authContextNote) authContextNote.hidden = !(options && options.fromCheckout);
+    if (wasOpen) return; // sudah terbuka, cukup ganti tab/context di atas
+    activateAuthShell();
+  }
+  function closeAuthModal() {
+    if (!isAuthOpen()) return;
+    authModal.classList.remove('is-open', 'is-entering');
+    authModal.setAttribute('aria-hidden', 'true');
+    window.clearTimeout(authEnterTimer);
+    authEnterTimer = null;
+    if (window.__kopiScrollLock) window.__kopiScrollLock.unlock();
+    stopAllAuthVideos();
+    cancelAuthTabSwitch();
+    if (authPanelSwapTimer) { window.clearTimeout(authPanelSwapTimer); authPanelSwapTimer = null; }
+    cancelOtpGlass();
     hideOtpPanel(); // menutup manual saat OTP = batal verifikasi, bukan menandai berhasil
     pendingAfterAuth = null; // menutup manual = batal, bukan "lanjutkan ke checkout"
+    authCleanupPending = true;
+    authFinalizeTimer = window.setTimeout(finalizeAuthClose, authCssMs('--auth-close', 280) + 60);
   }
 
   /* =======================================================
@@ -733,59 +882,75 @@ import {
     }
   };
 
+  /* Ganti tab Masuk <-> Daftar. Urutannya SATU-SATU (tidak pernah tumpang
+     tindih): form lama fade-out -> ditukar saat tak terlihat -> form baru
+     fade-in. Kelas .auth-form--out/--in ada di style.css. Klik beruntun
+     dibatalkan dengan token supaya timer lama tidak menimpa yang baru. */
+  var authSwitchToken = 0;
+  var authSwitchTimer = null;
+  var authSwitchPendingTab = null;
+
+  function cancelAuthTabSwitch() {
+    authSwitchToken++;
+    if (authSwitchTimer) { window.clearTimeout(authSwitchTimer); authSwitchTimer = null; }
+    authSwitchPendingTab = null;
+    if (authModalTitle) authModalTitle.classList.remove('is-fading');
+    [loginForm, registerForm].forEach(function (f) {
+      if (f) f.classList.remove('auth-form--out', 'auth-form--in');
+    });
+  }
+
   function switchAuthTab(tab) {
+    var isRegister = tab === 'register';
+    var targetForm = isRegister ? registerForm : loginForm;
+    var otherForm = isRegister ? loginForm : registerForm;
+    if (!targetForm) return;
+    if (authSwitchPendingTab === tab) return; // pergantian ke tab ini sudah berjalan
+
+    cancelAuthTabSwitch();
+
     var tabs = authModal ? authModal.querySelectorAll('[data-auth-tab]') : [];
     tabs.forEach(function (btn) {
       var active = btn.getAttribute('data-auth-tab') === tab;
       btn.classList.toggle('is-active', active);
       btn.setAttribute('aria-selected', String(active));
     });
-    if (authModal) authModal.classList.toggle('is-register', tab === 'register');
-    if (authModalTitle) authModalTitle.textContent = tab === 'register' ? 'Buat Akun Baru' : 'Masuk ke Akun Anda';
+    if (authModal) authModal.classList.toggle('is-register', isRegister);
     setFormError(loginError, '');
     setFormError(registerError, '');
 
-    var targetForm = tab === 'register' ? registerForm : loginForm;
-    var otherForm = tab === 'register' ? loginForm : registerForm;
-    if (!targetForm) return;
+    var title = isRegister ? 'Buat Akun Baru' : 'Masuk ke Akun Anda';
+    var needsSwap = targetForm.hidden === true && !!otherForm && otherForm.hidden === false;
 
-    // Only cross-fade when this is an actual tab change (target was hidden
-    // and is about to become visible). openAuthModal() calls this on every
-    // open — including re-opening on the tab that's already active — and
-    // that case should just show the form instantly, not replay the swap
-    // animation on top of the panel's own entrance stagger.
-    var isRealSwitch = targetForm.hidden === true;
-    if (!isRealSwitch) {
+    // Modal tertutup / sedang dibuka (entrance sendiri), reduced-motion, atau
+    // form tujuan sudah tampil: tampilkan langsung tanpa crossfade.
+    if (prefersReducedMotion || !isAuthOpen() || !needsSwap) {
+      if (authModalTitle) authModalTitle.textContent = title;
       if (otherForm) otherForm.hidden = true;
       targetForm.hidden = false;
       return;
     }
 
-    if (otherForm && !otherForm.hidden) {
-      if (prefersReducedMotion) {
-        otherForm.hidden = true;
-      } else {
-        otherForm.classList.add('auth-form--out');
-        window.setTimeout(function () {
-          otherForm.hidden = true;
-          otherForm.classList.remove('auth-form--out');
-        }, 260);
+    authSwitchPendingTab = tab;
+    var token = authSwitchToken;
+    authModal.classList.remove('is-entering'); // cegah entrance ter-restart saat form baru ditampilkan
+    otherForm.classList.add('auth-form--out');
+    if (authModalTitle) authModalTitle.classList.add('is-fading');
+    authSwitchTimer = window.setTimeout(function () {
+      authSwitchTimer = null;
+      if (token !== authSwitchToken) return;
+      authSwitchPendingTab = null;
+      otherForm.classList.remove('auth-form--out');
+      otherForm.hidden = true;
+      if (authModalTitle) {
+        authModalTitle.textContent = title;
+        authModalTitle.classList.remove('is-fading');
       }
-    }
-
-    targetForm.hidden = false;
-    if (!prefersReducedMotion) {
-      targetForm.classList.add('auth-form--in');
-      // Double rAF: let the browser paint the "in" starting position first,
-      // then remove the class on the next frame so the transition actually
-      // has a from-state to animate away from (a single rAF is sometimes
-      // batched into the same frame as the class add and gets skipped).
-      window.requestAnimationFrame(function () {
-        window.requestAnimationFrame(function () {
-          targetForm.classList.remove('auth-form--in');
-        });
-      });
-    }
+      targetForm.classList.add('auth-form--in'); // from-state (tanpa transition)
+      targetForm.hidden = false;
+      void targetForm.offsetWidth;               // commit from-state sebelum dianimasikan
+      targetForm.classList.remove('auth-form--in');
+    }, 180);
   }
 
   if (openAuthModalBtn) openAuthModalBtn.addEventListener('click', function () { openAuthModal('login'); });
