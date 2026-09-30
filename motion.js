@@ -415,8 +415,10 @@
       }).observe(badge, { childList: true, characterData: true, subtree: true });
     }
 
-    /* checkout view + auth login/register panels: content cascades in
-       whenever they switch from hidden to visible */
+    /* checkout view: content cascades in whenever it switches from
+       hidden to visible. (Panel auth login/register/OTP sengaja TIDAK
+       ikut di sini: animasi masuknya diatur penuh oleh style.css +
+       js/auth.js, supaya tidak bertabrakan dengan animasi GSAP.) */
     var cascade = function (el) {
       if (!el) return;
       new MutationObserver(function () {
@@ -428,6 +430,5 @@
       }).observe(el, { attributes: true, attributeFilter: ['hidden'] });
     };
     cascade(document.getElementById('checkoutView'));
-    gsap.utils.toArray('[data-auth-panel]').forEach(cascade);
   }
 })();
