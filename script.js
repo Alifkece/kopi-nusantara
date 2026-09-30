@@ -49,7 +49,15 @@
       document.body.style.right = '';
       document.body.style.width = '';
       document.body.style.overflow = '';
+      // html { scroll-behavior: smooth } akan menganimasikan scrollTo ini dari
+      // atas halaman (body baru saja dilepas dari position:fixed) — terlihat
+      // sebagai halaman "meloncat" di balik overlay yang sedang menutup.
+      // Pulihkan posisi seketika.
+      var rootEl = document.documentElement;
+      var prevBehavior = rootEl.style.scrollBehavior;
+      rootEl.style.scrollBehavior = 'auto';
       window.scrollTo(0, lockedScrollY);
+      rootEl.style.scrollBehavior = prevBehavior;
     }
   }
   window.__kopiScrollLock = { lock: lockBodyScroll, unlock: unlockBodyScroll };
