@@ -1976,126 +1976,149 @@ svg{ display: block; }
 
 /* =========================================================
    AUTHENTICATION EXPERIENCE (full-screen)
-   Replaces the old bare login modal. Same brand palette/type as
-   the rest of the site — brand visual left, form right.
+   Brand visual kiri + form kanan (desktop >= 861px), video atas +
+   form bawah (mobile <= 860px). Semua aturan auth ada di SATU blok
+   ini (dulu tersebar di 3 tempat dan saling menimpa).
+
+   Lifecycle (disinkronkan dengan js/auth.js):
+   .is-open      modal tampil (visibility + pointer-events + fade/scale)
+   .is-entering  ~0.9s pertama setelah dibuka: konten masuk berurutan
+   .is-register  tab Daftar aktif (dipakai untuk spacing mobile)
+   --auth-open / --auth-close = durasi buka / tutup. js/auth.js membaca
+   --auth-close untuk menunda pause video + reset form sampai animasi
+   tutup benar-benar selesai (tidak ada konten yang berubah saat fade).
 ========================================================= */
 .auth-screen{
+  --auth-open: .46s;
+  --auth-close: .28s;
+  --auth-ease: cubic-bezier(.16, 1, .3, 1);
   position: fixed; inset: 0; z-index: 950;
-  visibility: hidden;
-  /* Was switching to hidden instantly (no transition), which cut off
-     .auth-screen__panel-wrap's own closing fade/scale mid-flight. Delaying
-     the visibility flip until the longest child transition (.55s, the
-     panel-wrap transform below) finishes gives the close animation the
-     same weight as the open one. Opening still flips visibility on
-     immediately (0s delay) via the .is-open override right below. */
-  transition: visibility 0s linear .55s;
+  height: 100vh; height: 100dvh;
+  /* Tertutup: visibility baru flip SETELAH fade tutup selesai (delay =
+     --auth-close), dan pointer-events langsung mati supaya lapisan yang
+     sedang memudar tidak menelan klik ke halaman di belakangnya. */
+  visibility: hidden; pointer-events: none;
+  transition: visibility 0s linear var(--auth-close);
 }
-.auth-screen.is-open{ visibility: visible; transition: visibility 0s linear 0s; }
+.auth-screen.is-open{ visibility: visible; pointer-events: auto; transition-delay: 0s; }
+
 .auth-screen__backdrop{
   position: absolute; inset: 0;
   background: rgba(18,11,7,.72);
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  opacity: 0; transition: opacity .45s var(--ease);
+  opacity: 0; transition: opacity var(--auth-close) var(--ease);
 }
-.auth-screen.is-open .auth-screen__backdrop{ opacity: 1; }
+.auth-screen.is-open .auth-screen__backdrop{ opacity: 1; transition-duration: var(--auth-open); }
+
 .auth-screen__frame{
-  position: relative; height: 100%; width: 100%;
+  position: relative; width: 100%; height: 100%;
   display: flex; align-items: center; justify-content: center;
-  padding: 24px; overflow: hidden;
-  /* No scroll anywhere on the auth screen — frame is a hard viewport-
-     sized box, sizing below is calculated so nothing needs to spill
-     out of it (mobile and desktop breakpoints each cap panel height
-     to the viewport and compact their own content to fit). */
+  padding: clamp(12px, 3vh, 32px) clamp(16px, 3vw, 40px);
+  overflow: hidden;
 }
-@supports (height: 100dvh){
-  .auth-screen{ height: 100dvh; }
-  .auth-screen__frame{ height: 100dvh; }
-}
+
 .auth-screen__panel-wrap{
   position: relative;
-  width: min(980px, 100%);
-  max-height: calc(100vh - 48px);
-  margin: auto;
+  width: min(1400px, 100%);
+  height: min(740px, 100%);
   background: var(--c-offwhite);
   border-radius: var(--radius-l);
   overflow: hidden;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) clamp(400px, 32vw, 450px);
+  grid-template-rows: minmax(0, 1fr);
   box-shadow: 0 50px 120px rgba(18,11,7,.45);
-  opacity: 0; transform: translateY(28px) scale(.96);
-  transition: opacity .5s var(--ease), transform .55s var(--ease-spring);
+  /* Tutup: lebih singkat dari buka. Hanya opacity + transform (compositor). */
+  opacity: 0; transform: translate3d(0, 14px, 0) scale(.975);
+  transition: opacity var(--auth-close) var(--ease), transform var(--auth-close) var(--ease);
+  will-change: opacity, transform;
 }
-.auth-screen.is-open .auth-screen__panel-wrap{ opacity: 1; transform: translateY(0) scale(1); }
+.auth-screen.is-open .auth-screen__panel-wrap{
+  opacity: 1; transform: translate3d(0, 0, 0) scale(1);
+  transition-duration: var(--auth-open);
+  transition-timing-function: var(--auth-ease);
+}
+
 .auth-screen__close{
   position: absolute; top: 18px; right: 18px; z-index: 5;
   width: 38px; height: 38px; border-radius: 50%;
   background: rgba(255,255,255,.85); color: var(--c-espresso);
   display: grid; place-items: center; font-size: 20px; border: none;
-  transition: transform var(--dur-s) var(--ease-spring), background var(--dur-s) var(--ease);
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--dur-s) var(--ease-spring), background-color .2s var(--ease);
 }
-.auth-screen__close:hover{ background: #fff; transform: rotate(90deg) scale(1.06); }
+@media (hover: hover){
+  .auth-screen__close:hover{ background: #fff; transform: rotate(90deg) scale(1.06); }
+}
+.auth-screen__close:active{ transform: scale(.92); }
 
+/* ---------- Visual (video) ----------
+   Dua <video> berbagi container ini; TEPAT satu yang display:block per
+   breakpoint (ditentukan eksplisit di media query di bawah), dan js/auth.js
+   memilih video aktif dengan breakpoint yang sama (861px). Video tetap
+   transparan (opacity 0) sampai frame pertamanya siap (.is-ready), jadi
+   yang terlihat selama loading adalah gambar fallback container — bukan
+   kotak kosong/hitam. */
 .auth-screen__visual{
-  position: relative; overflow: hidden;
-  display: flex; flex-direction: column; justify-content: flex-end;
-  padding: 48px 44px;
-  color: var(--c-offwhite);
-  /* Fallback while the video loads (or if it fails) — no <img> needed,
-     video is the primary visual per the auth-screen revision brief. */
+  position: relative; overflow: hidden; isolation: isolate;
   background: #1c140d url('assets/images/about.jpg') center/cover no-repeat;
 }
-/* Two <video> elements share this positioning; only one is display:block
-   at a time (mobile vs desktop breakpoint — see media queries below), so
-   only the active one ever autoplays/paints. */
 .auth-screen__visual-media{
-  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
-  transform: scale(1.09);
-  transition: transform 7s var(--ease);
-}
-.auth-screen.is-open .auth-screen__visual-media{ transform: scale(1); }
-.auth-screen__visual-media--desktop{ display: none; }
-.auth-screen__visual-media--mobile{ display: block; }
-.auth-screen__visual-overlay{
-  /* Dark gradient removed on every breakpoint — video must stay bright/
-     clean, not just on desktop (this used to only be hidden >=861px,
-     which is why it still showed as a dark overlay on mobile). */
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: center;
   display: none;
+  opacity: 0; transition: opacity .45s var(--ease);
+  background: transparent;
 }
+.auth-screen__visual-media.is-ready{ opacity: 1; }
+.auth-screen__visual-overlay,
 .auth-screen__visual-content{ display: none; }
-.auth-screen__visual .eyebrow{ color: var(--c-gold-soft); }
-.auth-screen__visual-title{
-  font-family: var(--f-display); font-weight: 600;
-  font-size: clamp(26px, 2.6vw, 34px); line-height: 1.2;
-  margin-bottom: 16px;
+
+/* ---------- Panel form ---------- */
+.auth-screen__panel{
+  min-height: 0;
+  display: flex; flex-direction: column;
+  overflow-x: hidden; overflow-y: auto;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  transition: opacity .2s var(--ease);
 }
-.auth-screen__visual-quote{ font-size: 14px; color: rgba(251,248,243,.78); line-height: 1.6; max-width: 320px; }
+.auth-screen__panel::-webkit-scrollbar{ display: none; }
+.auth-screen__panel > *{ flex-shrink: 0; }
+/* js/auth.js menambah .is-swapping sebentar saat panel berganti ke OTP */
+.auth-screen__panel.is-swapping{ opacity: 0; }
 
-.auth-screen__panel{ padding: 24px 40px; overflow: hidden; }
-.auth-screen__head{ margin-bottom: 18px; }
-.auth-screen__head h3{ font-size: 26px; }
-.auth-screen__context{ font-size: 13px; color: var(--c-coffee-2); background: var(--c-beige); border-radius: var(--radius-m); padding: 11px 14px; margin-bottom: 20px; line-height: 1.5; }
-
-/* Layered content entrance: header, tabs, Google button and the divider
-   each lift in with their own delay once the panel is open — the login/
-   register forms themselves are handled separately below (crossfade,
-   also used when switching tabs, not just on first open). */
-.auth-screen__head,
-.auth-screen__context,
-.auth-screen__tabs,
-.auth-google-btn,
-.auth-divider{
-  opacity: 0;
-  transform: translateY(14px);
-  transition: opacity .5s var(--ease), transform .5s var(--ease);
+.auth-screen__head h3{ font-size: 26px; transition: opacity .16s var(--ease); }
+.auth-screen__head h3.is-fading{ opacity: 0; }
+.auth-screen__context{
+  font-size: 13px; color: var(--c-coffee-2); background: var(--c-beige);
+  border-radius: var(--radius-m); padding: 11px 14px; line-height: 1.5;
 }
-.auth-screen.is-open .auth-screen__head{ opacity: 1; transform: translateY(0); transition-delay: .12s; }
-.auth-screen.is-open .auth-screen__context{ opacity: 1; transform: translateY(0); transition-delay: .15s; }
-.auth-screen.is-open .auth-screen__tabs{ opacity: 1; transform: translateY(0); transition-delay: .19s; }
-.auth-screen.is-open .auth-google-btn{ opacity: 1; transform: translateY(0); transition-delay: .24s; }
-.auth-screen.is-open .auth-divider{ opacity: 1; transform: translateY(0); transition-delay: .28s; }
 
-.auth-screen__tabs{ display: flex; gap: 8px; margin-bottom: 22px; background: var(--c-beige); padding: 4px; border-radius: var(--radius-pill); }
-.auth-tab{ flex: 1; padding: 10px 16px; border-radius: var(--radius-pill); font-family: var(--f-body); font-size: 13px; font-weight: 700; color: var(--c-coffee-2); background: transparent; border: none; transition: background var(--dur-s) var(--ease), color var(--dur-s) var(--ease); }
+/* Entrance berurutan: keyframe (bukan transition-delay) supaya delay-nya
+   TIDAK ikut terbawa ke hover/klik. Hanya aktif selama .is-entering dan
+   memakai fill "backwards": elemen bersih kembali ke gaya normalnya begitu
+   selesai (hover/active tidak tertimpa), dan tidak ada state akhir yang
+   tersangkut saat modal ditutup. */
+@keyframes authRise{
+  from{ opacity: 0; transform: translate3d(0, 12px, 0); }
+  to{ opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.auth-screen.is-entering .auth-screen__head{ animation: authRise .5s var(--auth-ease) .10s backwards; }
+.auth-screen.is-entering .auth-screen__context{ animation: authRise .5s var(--auth-ease) .12s backwards; }
+.auth-screen.is-entering .auth-screen__tabs{ animation: authRise .5s var(--auth-ease) .15s backwards; }
+.auth-screen.is-entering .auth-google-btn{ animation: authRise .5s var(--auth-ease) .19s backwards; }
+.auth-screen.is-entering .auth-divider{ animation: authRise .5s var(--auth-ease) .22s backwards; }
+.auth-screen.is-entering .auth-form:not([hidden]){ animation: authRise .5s var(--auth-ease) .25s backwards; }
+
+.auth-screen__tabs{ display: flex; gap: 8px; background: var(--c-beige); padding: 4px; border-radius: var(--radius-pill); }
+.auth-tab{
+  flex: 1; padding: 10px 16px; border-radius: var(--radius-pill);
+  font-family: var(--f-body); font-size: 13px; font-weight: 700;
+  color: var(--c-coffee-2); background: transparent; border: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-s) var(--ease), color var(--dur-s) var(--ease);
+}
 .auth-tab.is-active{ background: var(--c-espresso); color: var(--c-offwhite); }
 
 .auth-google-btn{
@@ -2105,42 +2128,56 @@ svg{ display: block; }
   background: #fff; border: 1px solid var(--c-line);
   border-radius: var(--radius-pill);
   font-family: var(--f-body); font-size: 14px; font-weight: 600; color: var(--c-espresso);
-  transition: border-color var(--dur-s) var(--ease), transform var(--dur-s) var(--ease-spring), box-shadow var(--dur-s) var(--ease);
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--dur-s) var(--ease), transform var(--dur-s) var(--ease), box-shadow var(--dur-s) var(--ease);
 }
-.auth-google-btn:hover{ border-color: var(--c-coffee-2); transform: translateY(-2px); box-shadow: 0 10px 24px rgba(36,22,17,.1); }
-.auth-google-btn:active{ transform: translateY(0) scale(.98); }
+@media (hover: hover){
+  .auth-google-btn:hover{ border-color: var(--c-coffee-2); transform: translate3d(0, -2px, 0); box-shadow: 0 10px 24px rgba(36,22,17,.1); }
+}
+.auth-google-btn:active{ transform: scale(.98); transition-duration: .12s; }
 .auth-google-btn__icon{ width: 20px; height: 20px; flex-shrink: 0; }
 .auth-google-btn .auth-submit__label{ display: flex; align-items: center; gap: 10px; }
 
-.auth-divider{ display: flex; align-items: center; gap: 14px; margin: 22px 0; color: var(--c-coffee-2); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+.auth-divider{ display: flex; align-items: center; gap: 14px; color: var(--c-coffee-2); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
 .auth-divider::before, .auth-divider::after{ content: ''; flex: 1; height: 1px; background: var(--c-line); }
 
+/* Ganti tab Masuk <-> Daftar (js/auth.js): form lama fade-out (.--out),
+   lalu form baru muncul dari .--in (tanpa transition, sebagai from-state)
+   dan fade-in. Keduanya tidak pernah tampil bersamaan, jadi tidak ada
+   penumpukan/lompatan tinggi. */
 .auth-form{
-  display: flex; flex-direction: column; gap: 16px;
-  transition: opacity .3s var(--ease), transform .3s var(--ease);
+  display: flex; flex-direction: column;
+  transition: opacity .2s var(--ease), transform .2s var(--ease);
 }
 .auth-form[hidden]{ display: none; }
-/* MASUK <-> DAFTAR crossfade: js/auth.js toggles these two classes for a
-   beat instead of swapping [hidden] straight away, so the tab change reads
-   as a smooth horizontal cross-dissolve rather than a hard cut. */
-.auth-form.auth-form--out{ opacity: 0; transform: translateX(-14px); pointer-events: none; }
-.auth-form.auth-form--in{ opacity: 0; transform: translateX(14px); }
+.auth-form.auth-form--out{ opacity: 0; transform: translate3d(-10px, 0, 0); pointer-events: none; }
+.auth-form.auth-form--in{ opacity: 0; transform: translate3d(10px, 0, 0); transition: none; }
 .auth-field{ display: flex; flex-direction: column; gap: 7px; }
 .auth-field span{ font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--c-coffee-2); }
 .auth-field input{
   font-family: var(--f-body); font-size: 14.5px; color: var(--c-espresso);
   padding: 13px 16px; border-radius: var(--radius-m);
   border: 1px solid var(--c-line); background: #fff;
-  transition: border-color var(--dur-s) var(--ease), box-shadow var(--dur-s) var(--ease), transform .15s var(--ease);
+  transition: border-color var(--dur-s) var(--ease), box-shadow var(--dur-s) var(--ease);
 }
-.auth-field input:focus{ outline: none; border-color: var(--c-gold); box-shadow: 0 0 0 3px rgba(173,138,82,.18); transform: translateY(-1px); }
+.auth-field input:focus{ outline: none; border-color: var(--c-gold); box-shadow: 0 0 0 3px rgba(173,138,82,.18); }
 .auth-field input::placeholder{ color: rgba(41,34,27,.35); }
+
+/* Ikon mata: crossfade (bukan display:none <-> block yang patah).
+   Spesifisitas sengaja lebih tinggi dari otp-glass.css. */
+.auth-screen .auth-pass__toggle svg{ grid-area: 1 / 1; display: block; transition: opacity .18s var(--ease), transform .18s var(--ease); }
+.auth-screen .auth-pass__toggle .icon-eye-off{ display: block; opacity: 0; transform: scale(.8); }
+.auth-screen .auth-pass__toggle.is-visible .icon-eye{ display: block; opacity: 0; transform: scale(.8); }
+.auth-screen .auth-pass__toggle.is-visible .icon-eye-off{ display: block; opacity: 1; transform: none; }
+
 .auth-form__error{
   font-size: 12.5px; color: #8A2C1F; background: rgba(138,44,31,.08);
   border: 1px solid rgba(138,44,31,.25); border-radius: var(--radius-s);
-  padding: 9px 12px;
+  padding: 9px 12px; overflow-wrap: anywhere;
+  animation: authFade .25s var(--ease) backwards;
 }
 .auth-form__error.is-shaking{ animation: authErrorShake .4s var(--ease); }
+@keyframes authFade{ from{ opacity: 0; } to{ opacity: 1; } }
 @keyframes authErrorShake{
   10%, 90%{ transform: translateX(-1px); }
   20%, 80%{ transform: translateX(2px); }
@@ -2148,7 +2185,7 @@ svg{ display: block; }
   40%, 60%{ transform: translateX(4px); }
 }
 
-/* OTP panel (Verifikasi Email) — reuses .auth-form/.auth-submit/.auth-form__error above */
+/* OTP panel (Verifikasi Email) — memakai ulang .auth-form/.auth-submit/.auth-form__error */
 .otp-instructions{ font-size: 13.5px; color: var(--c-coffee-2); margin: 0 0 2px; }
 .otp-instructions strong{ color: var(--c-espresso); }
 .otp-hint{ font-size: 12px; color: var(--c-coffee-2); opacity: .8; margin: 0 0 14px; line-height: 1.5; }
@@ -2158,13 +2195,14 @@ svg{ display: block; }
   width: 100%; aspect-ratio: 1 / 1; text-align: center;
   font-family: var(--f-body); font-size: 20px; font-weight: 700; color: var(--c-espresso);
   border-radius: var(--radius-m); border: 1px solid var(--c-line); background: #fff;
-  transition: border-color var(--dur-s) var(--ease), box-shadow var(--dur-s) var(--ease), transform .15s var(--ease);
+  transition: border-color var(--dur-s) var(--ease), box-shadow var(--dur-s) var(--ease);
 }
-.otp-box:focus{ outline: none; border-color: var(--c-gold); box-shadow: 0 0 0 3px rgba(173,138,82,.18); transform: translateY(-1px); }
+.otp-box:focus{ outline: none; border-color: var(--c-gold); box-shadow: 0 0 0 3px rgba(173,138,82,.18); }
 .auth-otp-resend{
   background: none; border: none; padding: 4px 0; text-align: center;
   font-family: var(--f-body); font-size: 12.5px; font-weight: 700; letter-spacing: .02em;
-  color: var(--c-gold); transition: color var(--dur-s) var(--ease);
+  color: var(--c-gold);
+  transition: color var(--dur-s) var(--ease), opacity var(--dur-s) var(--ease);
 }
 .auth-otp-resend:disabled{ color: var(--c-coffee-2); cursor: default; opacity: .75; }
 .auth-otp-resend:not(:disabled):hover{ color: var(--c-espresso); }
@@ -2172,26 +2210,159 @@ svg{ display: block; }
   .otp-box{ font-size: 17px; }
 }
 
+/* Tombol submit + loading: label & spinner saling crossfade */
 .auth-submit{ position: relative; margin-top: 2px; }
+.auth-submit__label{ transition: opacity .18s var(--ease); }
 .auth-submit__spinner{
   position: absolute; inset: 0; margin: auto; width: 18px; height: 18px;
   border-radius: 50%;
   border: 2px solid rgba(255,255,255,.35); border-top-color: #fff;
   opacity: 0; visibility: hidden;
-  animation: authSpin .7s linear infinite;
+  transition: opacity .18s var(--ease), visibility 0s linear .18s;
+  animation: authSpin .7s linear infinite; animation-play-state: paused;
 }
 .auth-google-btn .auth-submit__spinner{ border: 2px solid rgba(41,34,27,.25); border-top-color: var(--c-espresso); }
 .is-loading .auth-submit__label{ opacity: 0; }
-.is-loading .auth-submit__spinner{ opacity: 1; visibility: visible; }
+.is-loading .auth-submit__spinner{ opacity: 1; visibility: visible; transition-delay: 0s; animation-play-state: running; }
 @keyframes authSpin{ to{ transform: rotate(360deg); } }
 
+/* Overlay OTP (otp-glass.css): begitu modal mulai menutup, JANGAN ikut
+   di-transisi-kan sendiri — ia memudar bersama panel induknya, lalu
+   di-reset tanpa animasi saat modal sudah tak terlihat. */
+.auth-screen:not(.is-open) .otp-glass{ transition: none; }
+
+/* =========================================================
+   DESKTOP (>= 861px): visual kiri + form kanan.
+   Tinggi modal tetap (tidak berubah antara Masuk/Daftar/OTP) dan
+   mengikuti viewport; kalau viewport sangat pendek, hanya kolom form
+   yang scroll di dalam panelnya. Spacing memakai clamp(vh) supaya
+   ikut mengecil di laptop berlayar pendek tanpa mengecilkan teks.
+   Kolom video dibuat lebar (bukan 1fr:1fr) supaya rasio areanya
+   mendekati 16:9 dan crop object-fit:cover tetap wajar.
+========================================================= */
+@media (min-width: 861px){
+  .auth-screen__visual-media--desktop{ display: block; }
+  .auth-screen__panel{ padding: clamp(18px, 3.4vh, 34px) clamp(28px, 3vw, 44px); }
+  .auth-screen__head{ margin-bottom: clamp(10px, 1.8vh, 18px); }
+  .auth-screen__context{ margin-bottom: clamp(12px, 2vh, 20px); }
+  .auth-screen__tabs{ margin-bottom: clamp(12px, 2.2vh, 20px); }
+  .auth-google-btn{ padding: clamp(10px, 1.7vh, 14px) 20px; }
+  .auth-divider{ margin: clamp(12px, 2.2vh, 20px) 0; }
+  .auth-form{ gap: clamp(10px, 1.7vh, 16px); }
+  .auth-field input{ padding: clamp(10px, 1.6vh, 13px) 16px; }
+  /* Tinggi modal tetap (tidak berubah antara Masuk/Daftar/OTP). Konten
+     mengalir dari atas; sisa ruang di Masuk dibiarkan kosong di bawah
+     supaya tombol submit tetap menempel ke field-nya. */
+}
+/* Laptop berlayar pendek: padatkan spacing (bukan ukuran teks) supaya tab
+   Daftar tetap muat tanpa scroll sebisa mungkin. */
+@media (min-width: 861px) and (max-height: 780px){
+  .auth-screen__panel{ padding-top: 16px; padding-bottom: 16px; }
+  .auth-screen__head{ margin-bottom: 8px; }
+  .auth-screen__head h3{ font-size: 24px; }
+  .auth-screen__tabs{ margin-bottom: 10px; }
+  .auth-google-btn{ padding: 9px 20px; }
+  .auth-divider{ margin: 10px 0; }
+  .auth-form{ gap: 8px; }
+  .auth-field{ gap: 5px; }
+  .auth-field input{ padding: 9px 16px; }
+  .auth-submit{ padding-top: 12px; padding-bottom: 12px; }
+}
+
+/* =========================================================
+   MOBILE / TABLET PORTRAIT (<= 860px): video atas (16:9 penuh, tidak
+   di-crop) + form di bawah. Frame = tepat 1 layar (100dvh). Masuk muat
+   satu layar; Daftar lebih tinggi sehingga panelnya bisa scroll
+   (video tetap terpaku di atas).
+========================================================= */
 @media (max-width: 860px){
-  /* Frame fills the whole screen and never scrolls; only fixed, pre-
-     calculated pieces stack inside it (video + form), sized to always
-     fit within the viewport — no internal scroll container. */
-  .auth-screen__frame{ padding: 0; align-items: flex-start; overflow: hidden; }
-  .auth-screen__panel-wrap{ grid-template-columns: 1fr; height: 100%; max-height: none; min-height: 100%; border-radius: 0; }
-  .auth-screen__close{ top: 16px; right: 16px; }
+  .auth-screen__frame{ padding: 0; align-items: stretch; }
+  .auth-screen__panel-wrap{
+    display: flex; flex-direction: column;
+    width: 100%; height: 100%;
+    border-radius: 0;
+    transform: translate3d(0, 20px, 0) scale(.985);
+  }
+  .auth-screen__close{ top: calc(14px + env(safe-area-inset-top, 0px)); right: 16px; width: 40px; height: 40px; }
+
+  .auth-screen__visual{ flex: 0 0 auto; width: 100%; aspect-ratio: 16 / 9; }
+  .auth-screen__visual-media--mobile{ display: block; }
+
+  .auth-screen__panel{
+    flex: 1 1 auto;
+    justify-content: flex-start;
+    padding: 22px 22px calc(36px + env(safe-area-inset-bottom, 0px));
+    transition: padding .28s ease, opacity .2s var(--ease);
+  }
+  .auth-screen__head{ margin-bottom: 14px; transition: margin .28s ease; }
+  .auth-screen__head h3{ font-size: 21px; }
+  .auth-screen__context{ margin-bottom: 14px; padding: 10px 14px; }
+  .auth-screen__tabs{ margin-bottom: 14px; transition: margin .28s ease; }
+  .auth-google-btn{
+    padding: 12px 20px; min-height: 48px;
+    transition: padding .28s ease, min-height .28s ease, border-color var(--dur-s) var(--ease), transform var(--dur-s) var(--ease), box-shadow var(--dur-s) var(--ease);
+  }
+  .auth-divider{ margin: 16px 0; transition: margin .28s ease; }
+  .auth-form{ gap: 14px; transition: gap .28s ease, opacity .2s var(--ease), transform .2s var(--ease); }
+  .auth-field{ gap: 6px; }
+  /* 16px mencegah iOS zoom otomatis saat input difokus (yang menggeser viewport) */
+  .auth-field input{
+    padding: 13px 16px; font-size: 16px;
+    transition: padding .28s ease, border-color var(--dur-s) var(--ease), box-shadow var(--dur-s) var(--ease);
+  }
+  .auth-submit{
+    min-height: 48px; margin-top: 4px;
+    transition: min-height .28s ease, margin .28s ease, transform var(--dur-s) var(--ease-spring), background var(--dur-s) var(--ease), border-color var(--dur-s) var(--ease), color var(--dur-s) var(--ease), box-shadow var(--dur-s) var(--ease);
+  }
+
+  /* MASUK: hanya 2 field, dipadatkan sedikit agar muat satu layar tanpa scroll.
+     DAFTAR memakai spacing lega di atas dan scroll bila perlu. */
+  .auth-screen:not(.is-register) .auth-screen__panel{ padding-top: 18px; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+  .auth-screen:not(.is-register) .auth-screen__head .eyebrow{ display: none; }
+  .auth-screen:not(.is-register) .auth-screen__head{ margin-bottom: 12px; }
+  .auth-screen:not(.is-register) .auth-screen__head h3{ font-size: 20px; }
+  .auth-screen:not(.is-register) .auth-screen__tabs{ margin-bottom: 12px; }
+  .auth-screen:not(.is-register) .auth-google-btn{ padding: 11px 20px; min-height: 46px; }
+  .auth-screen:not(.is-register) .auth-divider{ margin: 14px 0; }
+  .auth-screen:not(.is-register) .auth-form{ gap: 12px; }
+  .auth-screen:not(.is-register) .auth-field{ gap: 5px; }
+  .auth-screen:not(.is-register) .auth-field input{ padding: 12px 16px; }
+}
+@media (max-width: 860px) and (max-height: 640px){
+  .auth-screen:not(.is-register) .auth-screen__panel{ padding-top: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .auth-screen:not(.is-register) .auth-screen__head{ margin-bottom: 6px; }
+  .auth-screen:not(.is-register) .auth-screen__head h3{ font-size: 18px; }
+  .auth-screen:not(.is-register) .auth-screen__tabs{ margin-bottom: 8px; }
+  .auth-screen:not(.is-register) .auth-google-btn{ padding: 8px 20px; min-height: 40px; }
+  .auth-screen:not(.is-register) .auth-divider{ margin: 8px 0; }
+  .auth-screen:not(.is-register) .auth-form{ gap: 8px; }
+  .auth-screen:not(.is-register) .auth-field input{ padding: 9px 16px; }
+  .auth-screen:not(.is-register) .auth-submit{ min-height: 44px; }
+}
+/* HP landscape / layar pendek: video 16:9 di atas akan memakan seluruh
+   tinggi layar, jadi susun berdampingan (video kiri, form kanan scroll). */
+@media (max-width: 860px) and (max-height: 520px) and (orientation: landscape){
+  .auth-screen__panel-wrap{
+    display: grid;
+    grid-template-columns: minmax(0, 42%) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .auth-screen__visual{ aspect-ratio: auto; width: auto; height: 100%; }
+  .auth-screen__panel{
+    padding: 16px max(22px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) 22px;
+  }
+  .auth-screen:not(.is-register) .auth-screen__panel{
+    padding: 12px max(22px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) 22px;
+  }
+  .auth-screen__close{ right: max(16px, env(safe-area-inset-right, 0px)); }
+}
+
+/* prefers-reduced-motion: aturan global di atas sudah memangkas durasi
+   transition/animation. Di sini kita pastikan entrance berurutan (yang
+   punya delay + fill backwards) tidak sempat menahan konten di opacity 0. */
+@media (prefers-reduced-motion: reduce){
+  .auth-screen.is-entering :is(.auth-screen__head, .auth-screen__context, .auth-screen__tabs, .auth-google-btn, .auth-divider, .auth-form){ animation: none !important; }
+  .auth-screen__panel-wrap{ transform: none !important; }
 }
 
 /* =========================================================
@@ -2225,193 +2396,4 @@ svg{ display: block; }
   border: 1px solid var(--c-line);
   border-radius: var(--radius-l);
   padding: 36px;
-  display: flex; flex-direction: column;
-  justify-content: center;
-  box-shadow: 0 24px 60px rgba(36,22,17,.07);
-}
-.location__info h3{ font-size: clamp(22px, 3vw, 28px); margin-bottom: 8px; }
-.location__address{ color: var(--c-coffee-2); font-size: 15px; margin-bottom: 4px; }
-.location__coords{ color: var(--c-coffee-2); font-size: 13px; margin-bottom: 18px; }
-.location__whatsapp{ font-size: 14px; color: var(--c-espresso); margin-bottom: 22px; }
-.location__whatsapp a{ font-weight: 700; color: var(--c-coffee); }
-.location__actions{ display: flex; flex-wrap: wrap; gap: 12px; }
-.location__actions .btn--ghost{ color: var(--c-espresso); border-color: var(--c-line); }
-.location__actions .btn--ghost:hover{ border-color: var(--c-coffee); }
-
-@media (max-width: 780px){
-  .location{ padding: 64px 0 72px; }
-  .location__wrap{ grid-template-columns: 1fr; }
-  .location__map{ aspect-ratio: 4/3; }
-  .location__info{ padding: 28px; }
-}
-
-/* =========================================================
-   RESPONSIVE
-========================================================= */
-@media (max-width: 1024px){
-  .about{ grid-template-columns: 1fr; padding: 44px var(--gutter); }
-  .about__media{ aspect-ratio: 16/9; }
-  .profile{ grid-template-columns: 1fr; padding: 40px var(--gutter); }
-  .vision{ grid-template-columns: 1fr; padding: 44px var(--gutter); }
-  .blog__grid{ grid-template-columns: repeat(2, 1fr); }
-  .footer__top{ grid-template-columns: 1fr 1fr; row-gap: 40px; }
-}
-
-@media (max-width: 780px){
-  .hamburger em{ display: none; }
-  /* Hanya tombol Cari (anak langsung .navbar__actions) yang disembunyikan di mobile.
-     Selector lama `.icon-btn:nth-child(1)` ikut menyembunyikan tombol Akun, karena
-     tombol itu juga anak pertama di dalam .account-menu. */
-  .navbar__actions > .icon-btn:nth-child(1){ display: none; }
-  .account-dropdown{ max-width: calc(100vw - (var(--gutter) * 2)); }
-
-  .footer__brand-media{ max-width: 100%; }
-  .footer{ padding: 60px var(--gutter) 0; }
-  .footer__top{ gap: 32px; padding-bottom: 40px; }
-  .footer__col{ gap: 9px; }
-  .footer__bottom{ padding: 20px 0; }
-  .mobile-menu{ width: min(420px, 86vw); padding: 84px 24px 32px; }
-
-  .hero__headline{ font-size: clamp(30px, 8.6vw, 44px); }
-  .hero__desc{ max-width: 100%; font-size: 15.5px; }
-
-  .section-head{ margin-bottom: 40px; }
-
-  .about, .profile, .vision{ margin-bottom: 28px; }
-
-  .why{ padding: 56px 0; }
-  .why__grid{ grid-template-columns: 1fr; gap: 28px; margin: 0 var(--gutter); }
-
-  .kios{ padding: 64px 0; }
-  .kios-slide{ flex-basis: 84vw; }
-  .kios-slide__img{ aspect-ratio: 4/3; }
-
-  .blog__grid{ grid-template-columns: 1fr; }
-
-  .moment{ height: 56vh; min-height: 380px; }
-
-  .footer__top{ grid-template-columns: 1fr; }
-  .final-cta{ padding: 90px var(--gutter); }
-
-  .product-modal__panel{ grid-template-columns: 1fr; max-height: 92vh; }
-  .product-modal__media{ aspect-ratio: 4/3; }
-  .product-modal__body{ padding: 28px; }
-  .cart-drawer__panel{ width: 100%; }
-}
-
-@media (max-width: 480px){
-  .about__stats{ gap: 24px; }
-
-  .mobile-menu{ width: 84vw; padding: 80px 20px 28px; }
-  .mobile-menu__nav a{ font-size: clamp(24px, 7.5vw, 30px); gap: 10px; padding: 8px 0; }
-}
-
-/* =========================================================
-   MOBILE FIXES — auth, product detail modal, cart bottom sheet
-   Semua aturan ada di dalam media query mobile, jadi desktop
-   (>780px / >860px) tidak terpengaruh. Scroll-lock background
-   sudah ditangani lockBodyScroll() di script.js.
-========================================================= */
-
-/* ---- AUTH (<= 860px) ----
-   Panel-wrap = exact viewport height (flex column): video on top at a
-   fixed 16:9 ratio (never cropped), form fills the rest. Form content
-   is compacted (padding/gaps below) so login AND the taller register
-   tab both fit in that remaining space with no internal scroll — the
-   panel is a hard overflow:hidden box now, not a scroll container. */
-@media (max-width: 860px){
-  .auth-screen,
-  .auth-screen__frame{ height: 100vh; height: 100dvh; }
-  .auth-screen__frame{ padding: 0; overflow: hidden; }
-  .auth-screen__panel-wrap{
-    display: flex; flex-direction: column;
-    width: 100%; height: 100%; min-height: 0; max-height: none;
-    margin: 0; border-radius: 0;
-  }
-  /* Video: always full-bleed, true 16:9, never cropped and never resized
-     (same in Masuk & Daftar, so no jump when switching tabs). */
-  .auth-screen__visual{
-    display: flex;
-    flex: 0 0 auto;
-    width: 100%; aspect-ratio: 16 / 9;
-    padding: 0;
-  }
-  .auth-screen__visual .eyebrow{ display: none; }
-  .auth-screen__visual-media--mobile{
-    position: absolute; inset: 0;
-    width: 100%; height: 100%;
-    object-fit: cover; object-position: center;
-    border-radius: 0; box-shadow: none;
-    transform: none;
-  }
-  .auth-screen.is-open .auth-screen__visual-media--mobile{ transform: none; }
-
-  /* Panel: comfortable spacing, and it may SCROLL when the form is taller
-     than the space under the video (Daftar on shorter phones). The video
-     stays pinned on top; only the form area scrolls. Nothing is ever
-     hidden behind the video or squeezed together. */
-  .auth-screen__panel{
-    flex: 1 1 auto; min-height: 0; height: auto; max-height: none;
-    overflow-x: hidden; overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-    scrollbar-width: none;
-    display: flex; flex-direction: column; justify-content: flex-start;
-    padding: 22px 22px calc(36px + env(safe-area-inset-bottom, 0px));
-  }
-  .auth-screen__panel::-webkit-scrollbar{ display: none; }
-  .auth-screen__panel > *{ flex-shrink: 0; }
-  .auth-screen__head{ margin-bottom: 14px; }
-  .auth-screen__head h3{ font-size: 21px; }
-  .auth-screen__context{ margin-bottom: 14px; padding: 10px 14px; }
-  .auth-screen__tabs{ margin-bottom: 14px; }
-  .auth-google-btn{ padding: 12px 20px; }
-  .auth-divider{ margin: 16px 0; }
-  .auth-form{ gap: 14px; }
-  .auth-field{ gap: 6px; }
-  .auth-field input{ padding: 13px 16px; }
-  .auth-screen__close{ top: calc(14px + env(safe-area-inset-top, 0px)); right: 16px; width: 40px; height: 40px; }
-  /* 16px mencegah iOS zoom otomatis saat input difokus (yang menggeser viewport) */
-  .auth-field input{ font-size: 16px; }
-  .auth-submit, .auth-google-btn{ min-height: 48px; }
-  .auth-submit{ margin-top: 4px; }
-  .auth-form__error{ overflow-wrap: anywhere; }
-}
-
-/* MASUK (login) on mobile: fits ONE screen, no scroll. It only has 2
-   fields, so slightly tighter spacing is enough — the video stays full
-   16:9. DAFTAR keeps the roomy spacing above and scrolls instead. Paddings
-   are transitioned so switching tabs animates smoothly. */
-@media (max-width: 860px){
-  .auth-screen__panel,
-  .auth-screen__head, .auth-screen__tabs, .auth-divider, .auth-form,
-  .auth-field input, .auth-google-btn, .auth-submit{
-    transition: padding .28s ease, margin .28s ease, gap .28s ease, min-height .28s ease, font-size .28s ease;
-  }
-  .auth-screen:not(.is-register) .auth-screen__panel{
-    overflow-y: hidden;
-    padding-top: 18px; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  }
-  /* If the checkout note is showing there's extra content: allow scroll rather than clip. */
-  .auth-screen:not(.is-register) .auth-screen__panel:has(#authContextNote:not([hidden])){ overflow-y: auto; }
-  .auth-screen:not(.is-register) .auth-screen__head .eyebrow{ display: none; }
-  .auth-screen:not(.is-register) .auth-screen__head{ margin-bottom: 12px; }
-  .auth-screen:not(.is-register) .auth-screen__head h3{ font-size: 20px; }
-  .auth-screen:not(.is-register) .auth-screen__tabs{ margin-bottom: 12px; }
-  .auth-screen:not(.is-register) .auth-google-btn{ padding: 11px 20px; min-height: 46px; }
-  .auth-screen:not(.is-register) .auth-divider{ margin: 14px 0; }
-  .auth-screen:not(.is-register) .auth-form{ gap: 12px; }
-  .auth-screen:not(.is-register) .auth-field{ gap: 5px; }
-  .auth-screen:not(.is-register) .auth-field input{ padding: 12px 16px; }
-  .auth-screen:not(.is-register) .auth-submit{ min-height: 48px; margin-top: 4px; }
-}
-@media (max-width: 860px) and (max-height: 640px){
-  .auth-screen:not(.is-register) .auth-screen__panel{ padding-top: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
-  .auth-screen:not(.is-register) .auth-screen__head{ margin-bottom: 6px; }
-  .auth-screen:not(.is-register) .auth-screen__head h3{ font-size: 18px; }
-  .auth-screen:not(.is-register) .auth-screen__tabs{ margin-bottom: 8px; }
-  .auth-screen:not(.is-register) .auth-google-btn{ padding: 8px 20px; min-height: 40px; }
-  .auth-screen:not(.is-register) .auth-divider{ margin: 8px 0; }
-  .auth-screen:not(.is-register) .auth-form{ gap: 8px; }
-  .auth-screen:not(.is-register) .auth-field input{ padding: 9px 16px; }
-  .auth-screen:not(.is-register) .auth
+  display: flex; flex-direction:
