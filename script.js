@@ -586,7 +586,7 @@
   ];
 
   var activeFilter = 'all';
-  var searchQuery = ''; // diisi oleh search overlay, dicocokkan ke nama/asal/jenis produk
+  var searchQuery = ''; // diisi oleh search overlay, dicocokkan ke NAMA produk (lihat matchesQuery)
   var selectedWeight = {}; // { productId: weightInGram } — pilihan berat per kartu
 
   function starIcon() {
@@ -614,13 +614,13 @@
     if (!wrap) return;
     var list = PRODUCTS.filter(function (p) {
       var matchesFilter = activeFilter === 'all' || p.origin === activeFilter;
-      var matchesSearch = !searchQuery || (p.name + ' ' + p.origin + ' ' + p.type).toLowerCase().indexOf(searchQuery) !== -1;
+      var matchesSearch = !searchQuery || matchesQuery(p, searchQuery);
       return matchesFilter && matchesSearch;
     });
 
     if (!list.length) {
       var emptyMsg = searchQuery ? 'Produk tidak ditemukan.' : 'Belum ada produk untuk daerah ini.';
-      wrap.innerHTML = '<p style="padding:40px 4px;color:var(--c-coffee-2);">' + emptyMsg + '</p>';
+      wrap.innerHTML = '<p style="grid-column:1/-1;margin:0;padding:40px 4px;text-align:center;color:var(--c-coffee-2);">' + emptyMsg + '</p>';
       hasRenderedProductsOnce = true;
       return;
     }
@@ -1164,12 +1164,15 @@
   });
 
   /* =======================================================
-     13. SEARCH — filters PRODUCTS by name/origin/type
+     13. SEARCH — filters PRODUCTS by product NAME (word-prefix match)
      - Opens an overlay bar under the navbar (no page reload,
        no navigation to another page).
      - Filters the real product grid live as the user types,
        combined with the active origin filter chip.
-     - Case-insensitive; empty input restores the full list.
+     - Case-insensitive; matches the START of the product name or the
+       start of any word in it ("g" -> Gayo, "sid" -> Kopi Sidikalang).
+       Origin / roast / description are NOT searched.
+     - Empty input restores the full list.
      - Shows "Produk tidak ditemukan." when there is no match.
   ======================================================= */
   var searchOverlay = document.getElementById('searchOverlay');
@@ -1181,9 +1184,21 @@
   var searchMatches = [];      // current suggestion list (product objects)
   var searchActiveIndex = -1;  // keyboard-highlighted suggestion index
   var SEARCH_SUGGESTION_LIMIT = 6;
+  var searchScrollLocked = false; // true only while the full-screen (mobile) overlay holds the shared scroll lock
 
+  // Name-only, word-prefix matching. Every space-separated token of the query
+  // must be the start of some word in the product name, so:
+  //   "g"    -> Gayo Arabika            (NOT anything with a "g" in the middle)
+  //   "sid"  -> Kopi Sidikalang         (start of the 2nd word)
+  //   "baj"  -> Flores Bajawa, Kopi Bajawa
+  // Origin, roast type and description are intentionally ignored.
   function matchesQuery(p, q) {
-    return (p.name + ' ' + p.origin + ' ' + p.type).toLowerCase().indexOf(q) !== -1;
+    var tokens = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+    if (!tokens.length) return true;
+    var words = String(p.name || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+    return tokens.every(function (t) {
+      return words.some(function (w) { return w.indexOf(t) === 0; });
+    });
   }
 
   function setSearchActive(index) {
@@ -1217,7 +1232,7 @@
     searchInput && searchInput.setAttribute('aria-expanded', 'true');
 
     if (!searchMatches.length) {
-      searchResultsWrap.innerHTML = '<p class="search-overlay__empty">Tidak ada kopi yang cocok dengan &ldquo;' + searchInput.value.trim() + '&rdquo;. Coba nama daerah asal atau jenis roast lain.</p>';
+      searchResultsWrap.innerHTML = '<p class="search-overlay__empty">Produk tidak ditemukan.</p>';
       searchActiveIndex = -1;
       return;
     }
@@ -1276,6 +1291,12 @@
     if (!searchOverlay) return;
     searchOverlay.classList.add('is-open');
     searchOverlay.setAttribute('aria-hidden', 'false');
+    // Mobile: the overlay covers the whole viewport, so freeze the page behind it.
+    // Desktop/tablet keep the page scrollable (the grid is visible under the panel).
+    if (!searchScrollLocked && window.matchMedia('(max-width: 640px)').matches) {
+      lockBodyScroll();
+      searchScrollLocked = true;
+    }
     window.setTimeout(function () { if (searchInput) searchInput.focus(); }, 200);
   }
 
@@ -1283,6 +1304,10 @@
     if (!searchOverlay) return;
     searchOverlay.classList.remove('is-open');
     searchOverlay.setAttribute('aria-hidden', 'true');
+    if (searchScrollLocked) {
+      searchScrollLocked = false;
+      unlockBodyScroll();
+    }
     if (searchInput) searchInput.value = '';
     searchQuery = '';
     hasScrolledToProducts = false;
