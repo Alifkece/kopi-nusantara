@@ -415,6 +415,63 @@ import {
   var otpGlassTimers = [];
   var otpGlassResetTimer = null;
 
+  /* ---- SFX tunggal animasi OTP: SATU file eksternal, SATU elemen Audio (tidak pernah menumpuk).
+     Mau ganti suara? Cukup replace file di OTP_SFX_SRC; logic di bawah tidak perlu diubah. ---- */
+  var OTP_SFX_SRC = 'assets/audio/otp-verification-sfx.mp3';
+  var otpSfx = null;
+  var otpSfxFadeTimer = null;
+
+  function getOtpSfx() {
+    if (otpSfx || typeof window.Audio !== 'function') return otpSfx;
+    try { otpSfx = new Audio(OTP_SFX_SRC); otpSfx.preload = 'auto'; } catch (e) { otpSfx = null; }
+    return otpSfx;
+  }
+  function haltOtpSfx() {
+    var a = otpSfx;
+    if (!a) return;
+    try { a.pause(); a.currentTime = 0; a.volume = 1; } catch (e) {}
+    a.muted = false;
+  }
+  // fade=true: fade-out singkat (animasi dibatalkan saat berjalan); false: berhenti seketika.
+  function stopOtpSfx(fade) {
+    if (otpSfxFadeTimer) { window.clearInterval(otpSfxFadeTimer); otpSfxFadeTimer = null; }
+    var a = otpSfx;
+    if (!a) return;
+    if (!fade || a.paused) { haltOtpSfx(); return; }
+    var v = 1;
+    otpSfxFadeTimer = window.setInterval(function () {
+      v -= 0.2;
+      if (v <= 0) { window.clearInterval(otpSfxFadeTimer); otpSfxFadeTimer = null; haltOtpSfx(); return; }
+      try { a.volume = v; } catch (e) {}
+    }, 40);
+  }
+  // Dipanggil dari gesture klik "Verifikasi" supaya play() yang baru jalan setelah respons server
+  // tidak diblokir browser (Safari/iOS). Diputar muted lalu langsung dihentikan; tidak terdengar.
+  function primeOtpSfx() {
+    var a = getOtpSfx();
+    if (prefersReducedMotion || !a || !a.paused) return;
+    a.muted = true;
+    var p;
+    try { p = a.play(); } catch (e) { p = null; }
+    if (p && typeof p.then === 'function') {
+      p.then(function () {
+        if (a.muted) { a.pause(); try { a.currentTime = 0; } catch (e) {} a.muted = false; }
+      }, function () { a.muted = false; });
+    } else {
+      a.muted = false;
+    }
+  }
+  // Mulai tepat saat animasi dimulai (t=0). Reduced-motion: timeline dipadatkan, jadi SFX dilewati.
+  function playOtpSfx() {
+    if (prefersReducedMotion) return;
+    var a = getOtpSfx();
+    if (!a) return;
+    stopOtpSfx(false); // pastikan mulai dari 0 dan tidak pernah dua instance bersamaan
+    var p;
+    try { p = a.play(); } catch (e) { p = null; }
+    if (p && typeof p.catch === 'function') p.catch(function () {}); // autoplay diblokir -> animasi tetap jalan tanpa suara
+  }
+
   function clearOtpGlassTimers() {
     otpGlassTimers.forEach(function (t) { window.clearTimeout(t); });
     otpGlassTimers = [];
@@ -433,6 +490,7 @@ import {
     clearOtpGlassTimers();
     if (otpGlassResetTimer) { window.clearTimeout(otpGlassResetTimer); otpGlassResetTimer = null; }
     otpAnimating = false;
+    stopOtpSfx(false);
     if (!otpGlass) return;
     otpGlass.classList.remove('is-active', 'is-merged', 'is-success');
     otpGlass.setAttribute('aria-hidden', 'true');
@@ -444,6 +502,7 @@ import {
   function cancelOtpGlass() {
     clearOtpGlassTimers();
     otpAnimating = false;
+    stopOtpSfx(true);
     if (!otpGlass || !otpGlass.classList.contains('is-active')) return;
     if (otpGlassResetTimer) window.clearTimeout(otpGlassResetTimer);
     otpGlassResetTimer = window.setTimeout(resetOtpGlass, 700);
@@ -483,6 +542,7 @@ import {
     layoutGlassDigits('row');
     otpGlass.classList.add('is-active');
     otpGlass.setAttribute('aria-hidden', 'false');
+    playOtpSfx(); // t=0.00s — SFX tunggal, durasi 7.6s mengikuti timeline di bawah
 
     otpGlassAfter(1300 * slow, function () {           // 1. digit membentuk lingkaran + berputar
       layoutGlassDigits('circle');
@@ -534,6 +594,7 @@ import {
     if (otpMaskedEmailEl) otpMaskedEmailEl.textContent = maskedEmail || '';
     setFormError(otpError, '');
     resetOtpGlass();
+    getOtpSfx(); // preload SFX selagi pengguna mengisi kode
     otpBoxes.forEach(function (b) { b.value = ''; });
     if (authPanelSwapTimer) { window.clearTimeout(authPanelSwapTimer); authPanelSwapTimer = null; }
 
@@ -641,6 +702,7 @@ import {
       }
       setFormError(otpError, '');
       setButtonLoading(otpVerifyBtn, true);
+      primeOtpSfx();
       submitOtpCode(code)
         .then(function (data) {
           if (!data.ok) {
