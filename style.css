@@ -1810,6 +1810,35 @@ svg{ display: block; }
   .search-result__thumb{ width: 56px; height: 56px; }
 }
 
+/* Desktop & tablet (>=641px): panel jadi kartu melayang di bawah navbar.
+   Navbar tetap terlihat & bisa diklik (ikon search tetap bisa untuk toggle),
+   backdrop hanya menggelapkan halaman di bawahnya, tidak ada lagi blok krem
+   setinggi layar dengan ruang kosong di atas kolom pencarian. Mobile tidak berubah. */
+@media (min-width: 641px){
+  .search-overlay{ top: 76px; }
+  .search-overlay__panel{
+    left: 0; right: 0; top: 0;
+    width: min(760px, calc(100% - (var(--gutter) * 2)));
+    margin: 14px auto 0;
+    padding: 22px 28px 20px;
+    border-radius: 20px;
+    border: 1px solid var(--c-line);
+    box-shadow: 0 24px 60px rgba(20, 12, 8, .28), 0 4px 14px rgba(20, 12, 8, .10);
+    opacity: 0;
+    transform: translateY(-18px);
+    transition: transform var(--dur-m) var(--ease), opacity var(--dur-s) var(--ease);
+  }
+  .search-overlay.is-open .search-overlay__panel{ opacity: 1; transform: translateY(0); }
+  .search-overlay__bar{ max-width: none; margin: 0; padding-bottom: 12px; }
+  .search-overlay__hint{ max-width: none; margin: 12px 0 0; }
+  .search-overlay__results{
+    max-width: none; margin: 10px 0 0;
+    max-height: min(56vh, 400px);
+    max-height: min(56dvh, 400px);
+  }
+  .search-overlay__empty{ max-width: none; margin: 6px 0 0; }
+}
+
 /* ---- Product highlight after arriving from search ---- */
 .product-card.is-search-target{
   animation: productHighlightPulse 1.6s var(--ease);
@@ -2547,4 +2576,3 @@ svg{ display: block; }
   .product-modal__footer{ flex-wrap: wrap; gap: 12px; }
   .product-modal__footer .btn{ flex: 1 1 180px; justify-content: center; text-align: center; }
 }
-
