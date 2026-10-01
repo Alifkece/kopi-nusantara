@@ -298,7 +298,8 @@ import {
   }
 
   function tryPlayAuthVideo(video, token, withSound) {
-    video.muted = !withSound;
+    // Saat animasi OTP berjalan, audio video auth selalu mute (video tetap play) walau play() dipanggil ulang.
+    video.muted = !withSound || otpAnimating;
     var playPromise;
     try { playPromise = video.play(); } catch (e) { playPromise = null; }
     if (playPromise && typeof playPromise.catch === 'function') {
@@ -322,6 +323,12 @@ import {
       try { active.currentTime = 0; } catch (e) { /* belum seekable — abaikan */ }
     }
     tryPlayAuthVideo(active, token, true);
+  }
+
+  // Dipanggil saat animasi OTP mulai: HANYA mute audio video auth. Video tidak di-pause dan SFX OTP
+  // (elemen Audio terpisah) tidak tersentuh.
+  function muteAuthVideoAudio() {
+    [authVisualDesktop, authVisualMobile].forEach(function (v) { if (v) v.muted = true; });
   }
 
   function stopAllAuthVideos() {
@@ -542,6 +549,7 @@ import {
     layoutGlassDigits('row');
     otpGlass.classList.add('is-active');
     otpGlass.setAttribute('aria-hidden', 'false');
+    muteAuthVideoAudio(); // t=0.00s — video tetap PLAY + loop, hanya audio video yang di-mute
     playOtpSfx(); // t=0.00s — SFX tunggal, durasi 7.6s mengikuti timeline di bawah
 
     otpGlassAfter(1300 * slow, function () {           // 1. digit membentuk lingkaran + berputar
