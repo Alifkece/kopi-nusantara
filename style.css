@@ -2496,4 +2496,40 @@ svg{ display: block; }
   border: 1px solid var(--c-line);
   border-radius: var(--radius-l);
   padding: 36px;
-  display: flex; flex-direction:
+  display: flex; flex-direction: column; justify-content: center; gap: 10px;
+  min-width: 0;
+}
+.location__info .eyebrow{ margin-bottom: 4px; }
+.location__info h3{ font-size: clamp(26px, 2.6vw, 34px); line-height: 1.15; margin-bottom: 6px; }
+.location__address,
+.location__coords,
+.location__whatsapp{ margin: 0; font-size: 15px; line-height: 1.6; color: var(--c-coffee-2); overflow-wrap: anywhere; }
+.location__whatsapp a{ color: var(--c-gold); font-weight: 600; text-decoration: none; transition: color var(--dur-s) var(--ease); }
+.location__whatsapp a:hover{ color: var(--c-coffee); }
+.location__actions{ display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px; }
+
+/* =========================================================
+   RESPONSIVE — LOKASI & FOOTER
+   (REKONSTRUKSI: bagian ini hilang dari style.css akibat file terpotong;
+   ditulis ulang dari markup index.html dengan token desain yang sama.)
+========================================================= */
+@media (max-width: 900px){
+  .location{ padding: 80px 0 90px; }
+  .location__wrap{ grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .location__info{ padding: 28px 24px; }
+
+  .footer{ padding-top: 72px; }
+  .footer__top{ grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 28px; padding-bottom: 52px; }
+  .footer__brand{ grid-column: 1 / -1; }
+}
+@media (max-width: 640px){
+  .location{ padding: 64px 0 72px; }
+  .location__info{ padding: 24px 20px; }
+  .location__actions .btn{ flex: 1 1 100%; justify-content: center; text-align: center; }
+
+  .footer{ padding-top: 60px; }
+  .footer__top{ grid-template-columns: minmax(0, 1fr); gap: 30px; padding-bottom: 40px; }
+  .footer__brand-media{ max-width: 100%; }
+  .footer__col a{ overflow-wrap: anywhere; }
+  .footer__bottom{ flex-direction: column; align-items: flex-start; gap: 14px; padding: 22px 0 26px; }
+}
