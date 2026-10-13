@@ -796,16 +796,94 @@
   }
 
   /* =======================================================
-     9. CART (front-end only — no database persistence)
+     9. CART (persisten di localStorage browser)
      -----------------------------------------------------
-     CATATAN: cartState hidup hanya selama sesi halaman ini.
-     Pada tahap berikutnya akan dihubungkan ke database/session
-     asli. Checkout sekarang mengecek Firebase Auth (lihat
-     js/auth.js / window.KopiAuth) lalu menampilkan ringkasan
-     pesanan yang diteruskan ke WhatsApp — belum ada payment
-     gateway, sesuai instruksi untuk tidak mengarang backend.
+     Sebelumnya cartState hanya hidup di memori halaman, sehingga
+     hilang setiap refresh / browser ditutup. Sekarang isi keranjang
+     disimpan di localStorage (hanya productId, weight, qty — harga
+     selalu dihitung ulang dari PRODUCTS agar tidak pernah basi).
+     Keranjang dipisah per pemilik: "guest" untuk pengunjung yang
+     belum login, dan satu keranjang per uid untuk akun yang login,
+     sehingga keranjang antar akun tidak tercampur. Saat login,
+     keranjang guest digabung ke keranjang akun lalu dikosongkan.
+     Checkout mengecek Firebase Auth (lihat js/auth.js /
+     window.KopiAuth) lalu menampilkan ringkasan pesanan yang
+     diteruskan ke WhatsApp / QRIS. Pesanan dicatat lewat
+     window.KopiOrders (js/orders.js) saat tombol kirim ditekan.
   ======================================================= */
-  var cartState = []; // { productId, weight, qty }
+  var CART_STORAGE_PREFIX = 'kopiNusantara.cart.v1:';
+  var CART_MAX_QTY = 999;
+  var cartOwner = 'guest'; // 'guest' | uid Firebase
+  var cartStorageWarned = false;
+
+  function cartStorageKey(owner) { return CART_STORAGE_PREFIX + owner; }
+
+  // Membersihkan data dari storage: buang produk/berat yang tidak dikenal,
+  // jumlah tidak valid, dan gabungkan baris ganda (produk + berat sama).
+  function sanitizeCartItems(raw) {
+    var out = [];
+    if (!Array.isArray(raw)) return out;
+    raw.forEach(function (it) {
+      if (!it || typeof it.productId !== 'string') return;
+      var product = getProductById(it.productId);
+      var weight = parseInt(it.weight, 10);
+      var qty = parseInt(it.qty, 10);
+      if (!product || product.weights.indexOf(weight) === -1 || !(qty > 0)) return;
+      var dup = out.find(function (o) { return o.productId === product.id && o.weight === weight; });
+      if (dup) {
+        dup.qty = Math.min(CART_MAX_QTY, dup.qty + qty);
+      } else {
+        out.push({ productId: product.id, weight: weight, qty: Math.min(CART_MAX_QTY, qty) });
+      }
+    });
+    return out;
+  }
+
+  function readStoredCart(owner) {
+    try {
+      var raw = window.localStorage.getItem(cartStorageKey(owner));
+      if (!raw) return [];
+      var parsed = JSON.parse(raw);
+      return sanitizeCartItems(parsed && parsed.items);
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function writeStoredCart(owner, items) {
+    try {
+      if (!items.length) {
+        window.localStorage.removeItem(cartStorageKey(owner));
+      } else {
+        window.localStorage.setItem(cartStorageKey(owner), JSON.stringify({ v: 1, items: items }));
+      }
+      return true;
+    } catch (err) {
+      console.error('Gagal menyimpan keranjang:', err);
+      if (!cartStorageWarned && window.KopiToast) {
+        cartStorageWarned = true;
+        window.KopiToast('Keranjang tidak dapat disimpan di browser ini (mode privat atau penyimpanan penuh).', 'error');
+      }
+      return false;
+    }
+  }
+
+  function persistCart() { return writeStoredCart(cartOwner, cartState); }
+
+  function mergeCartItems(base, extra) {
+    var merged = sanitizeCartItems(base);
+    sanitizeCartItems(extra).forEach(function (it) {
+      var same = merged.find(function (o) { return o.productId === it.productId && o.weight === it.weight; });
+      if (same) {
+        same.qty = Math.min(CART_MAX_QTY, same.qty + it.qty);
+      } else {
+        merged.push({ productId: it.productId, weight: it.weight, qty: it.qty });
+      }
+    });
+    return merged;
+  }
+
+  var cartState = readStoredCart('guest'); // { productId, weight, qty }
   var cartBadge = document.querySelector('[data-cart-count]');
   var cartDrawer = document.getElementById('cartDrawer');
   var cartItemsWrap = document.getElementById('cartItems');
@@ -831,10 +909,11 @@
   function addToCart(productId, weight) {
     var existing = cartState.find(function (item) { return item.productId === productId && item.weight === weight; });
     if (existing) {
-      existing.qty += 1;
+      existing.qty = Math.min(CART_MAX_QTY, existing.qty + 1);
     } else {
       cartState.push({ productId: productId, weight: weight, qty: 1 });
     }
+    persistCart();
     renderCart();
   }
 
@@ -845,6 +924,7 @@
     if (item.qty <= 0) {
       cartState = cartState.filter(function (i) { return i !== item; });
     }
+    persistCart();
     renderCart();
   }
 
@@ -937,6 +1017,54 @@
     if (qtyBtn) {
       updateCartQty(qtyBtn.getAttribute('data-product-id'), parseInt(qtyBtn.getAttribute('data-weight'), 10), parseInt(qtyBtn.getAttribute('data-cart-qty'), 10));
     }
+  });
+
+  /* ---- Pemilik keranjang mengikuti status login ----
+     js/orders.js menembakkan 'kopi:authchange' setiap status Firebase Auth
+     diketahui/berubah. Login: keranjang guest digabung ke keranjang akun
+     (jumlah dijumlahkan per produk+berat), lalu keranjang guest dikosongkan
+     supaya tidak pernah digabung dua kali. Logout / ganti akun: keranjang
+     akun lama TIDAK dibawa — tiap akun hanya melihat keranjangnya sendiri. */
+  function switchCartOwner(newOwner) {
+    newOwner = newOwner || 'guest';
+    if (newOwner === cartOwner) return;
+    var previousOwner = cartOwner;
+    if (previousOwner === 'guest') {
+      var merged = mergeCartItems(readStoredCart(newOwner), cartState);
+      if (merged.length) {
+        // Tulis keranjang akun dulu; keranjang guest baru dihapus kalau berhasil.
+        cartOwner = newOwner;
+        cartState = merged;
+        if (persistCart()) writeStoredCart('guest', []);
+      } else {
+        cartOwner = newOwner;
+        cartState = [];
+      }
+    } else {
+      cartOwner = newOwner;
+      cartState = readStoredCart(newOwner);
+    }
+    checkoutDraftId = null;
+    if (checkoutView && !checkoutView.hidden) showCartItemsView();
+    renderCart();
+  }
+
+  window.addEventListener('kopi:authchange', function (e) {
+    switchCartOwner(e && e.detail ? e.detail.uid : null);
+  });
+  // Jika js/orders.js sudah sempat menentukan status login sebelum listener ini terpasang.
+  if (window.KopiOrders && typeof window.KopiOrders.getUid === 'function') {
+    switchCartOwner(window.KopiOrders.getUid());
+  }
+
+  // Sinkron antar tab: tab lain mengubah keranjang yang sama -> muat ulang
+  // dari storage supaya tab ini tidak menimpa dengan state basi.
+  window.addEventListener('storage', function (e) {
+    if (e.key !== cartStorageKey(cartOwner)) return;
+    cartState = readStoredCart(cartOwner);
+    checkoutDraftId = null;
+    if (checkoutView && !checkoutView.hidden) showCartItemsView();
+    renderCart();
   });
 
   /* =======================================================
@@ -1033,6 +1161,7 @@
 
   function showCheckoutView() {
     if (!cartState.length) return;
+    checkoutDraftId = generateOrderId(); // satu ID per sesi checkout; dipakai ulang bila tombol ditekan 2x
     renderCheckoutSummary();
     setPaymentMethod('whatsapp');
     if (cartItemsWrap) cartItemsWrap.hidden = true;
@@ -1057,6 +1186,117 @@
 
   if (checkoutBackBtn) {
     checkoutBackBtn.addEventListener('click', showCartItemsView);
+  }
+
+  /* ---- Pencatatan pesanan ----
+     Pesanan dicatat saat pelanggan menekan tombol yang benar-benar
+     meneruskan pesanan ke owner: "Pesan via WhatsApp" atau (untuk QRIS)
+     "Kirim Bukti Transaksi ke Owner". Menampilkan QRIS / membuka WhatsApp
+     BUKAN bukti bayar, jadi status awalnya hanya "menunggu" — tidak pernah
+     "lunas". Keranjang dikosongkan hanya setelah pesanan berhasil disimpan;
+     jika gagal, keranjang dipertahankan dan WhatsApp tidak dibuka. */
+  var checkoutDraftId = null;
+
+  function generateOrderId() {
+    var d = new Date();
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    var datePart = String(d.getFullYear()).slice(2) + pad(d.getMonth() + 1) + pad(d.getDate());
+    var alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    var rand = '';
+    var bytes = null;
+    try {
+      if (window.crypto && window.crypto.getRandomValues) {
+        bytes = window.crypto.getRandomValues(new Uint8Array(6));
+      }
+    } catch (err) { bytes = null; }
+    for (var i = 0; i < 6; i++) {
+      var n = bytes ? bytes[i] : Math.floor(Math.random() * 256);
+      rand += alphabet.charAt(n % alphabet.length);
+    }
+    return 'KN-' + datePart + '-' + rand;
+  }
+
+  function notifyOrder(message, type) {
+    if (window.KopiToast) window.KopiToast(message, type);
+  }
+
+  function submitOrder(method, e) {
+    // Klik ganda / klik setelah pesanan sudah tercatat: jangan catat atau buka WhatsApp lagi.
+    if (!checkoutDraftId || !cartState.length) {
+      e.preventDefault();
+      return;
+    }
+    // Modul akun/pesanan (Firebase) gagal dimuat: jangan menghalangi jalur
+    // WhatsApp/QRIS yang sudah ada. Pesanan tidak bisa dicatat, keranjang tetap.
+    if (!window.KopiAuth || !window.KopiOrders) {
+      notifyOrder('Pesanan tidak dapat dicatat di riwayat saat ini (sistem akun belum siap).', 'info');
+      return;
+    }
+    var user = window.KopiAuth.getCurrentUser();
+    if (!user || user.uid !== cartOwner || !window.KopiAuth.isAuthenticated()) {
+      e.preventDefault();
+      notifyOrder('Sesi login belum siap atau sudah berakhir. Silakan coba lagi atau masuk kembali.', 'error');
+      return;
+    }
+
+    var items = [];
+    var subtotal = 0;
+    cartState.forEach(function (item) {
+      var product = getProductById(item.productId);
+      if (!product) return;
+      var unitPrice = priceForWeight(product, item.weight);
+      var lineTotal = unitPrice * item.qty;
+      subtotal += lineTotal;
+      items.push({
+        productId: product.id,
+        name: product.name,
+        image: product.image,
+        weight: item.weight,
+        qty: item.qty,
+        unitPrice: unitPrice,
+        lineTotal: lineTotal
+      });
+    });
+    if (!items.length) {
+      e.preventDefault();
+      return;
+    }
+
+    var result = window.KopiOrders.create({
+      id: checkoutDraftId,
+      uid: user.uid,
+      items: items,
+      subtotal: subtotal,
+      paymentMethod: method,
+      status: method === 'qris' ? 'awaiting_payment_verification' : 'awaiting_confirmation',
+      customer: {
+        name: user.displayName || (user.email ? user.email.split('@')[0] : 'Pengguna'),
+        email: user.email || ''
+      }
+    });
+
+    if (!result || !result.ok) {
+      e.preventDefault();
+      notifyOrder('Pesanan gagal disimpan, keranjang Anda tetap aman. Silakan coba lagi.', 'error');
+      return;
+    }
+
+    // Tersimpan -> baru kosongkan keranjang. Tautan WhatsApp tetap berjalan
+    // (href sudah dihitung saat ringkasan checkout ditampilkan).
+    var orderId = result.order.id;
+    checkoutDraftId = null;
+    cartState = [];
+    persistCart();
+    renderCart();
+    showCartItemsView();
+    notifyOrder('Pesanan ' + orderId + ' tercatat. Lihat di Riwayat Pesanan pada menu akun.', 'success');
+  }
+
+  if (checkoutWhatsappBtn) {
+    checkoutWhatsappBtn.addEventListener('click', function (e) { submitOrder('whatsapp', e); });
+  }
+  if (checkoutQrisProofBtn) {
+    checkoutQrisProofBtn.addEventListener('click', function (e) { submitOrder('qris', e); });
   }
 
   /* =======================================================
